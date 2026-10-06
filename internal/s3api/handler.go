@@ -49,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/internal/prometheus-sd", metrics.SDHandler(s.Reg, "/metrics"))
 	mux.HandleFunc("/api/polki", s.handleAPIPolki)
 	mux.HandleFunc("/api/polki/", s.handleAPIPolki)
+	mux.HandleFunc("/api/stats", s.handleAPIStats)
 	mux.Handle("/ui/", webui.Handler())
 	mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/", http.StatusFound)
@@ -68,6 +69,13 @@ func (s *Server) refreshMetrics() {
 
 func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	name := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/polki"), "/")
+
+	if name != "" {
+		s.handleAPIPolkaDetail(w, r, name)
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		names, err := s.Store.ListPolki()
@@ -75,7 +83,15 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"polki": names})
+		polki := make([]storage.PolkaStats, 0, len(names))
+		for _, n := range names {
+			st, err := s.Store.StatsForPolka(n)
+			if err != nil {
+				st = storage.PolkaStats{Name: n}
+			}
+			polki = append(polki, st)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"polki": polki})
 	case http.MethodPost:
 		var body struct {
 			Name string `json:"name"`
@@ -97,6 +113,81 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (s *Server) handleAPIPolkaDetail(w http.ResponseWriter, r *http.Request, name string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	st, err := s.Store.StatsForPolka(name)
+	if err != nil {
+		if errors.Is(err, storage.ErrPolkaNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	objs, _, err := s.Store.ListObjects(name, "", 100, "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"polka":   st,
+		"objects": objs,
+	})
+}
+
+func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.refreshMetrics()
+	names, err := s.Store.ListPolki()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	polki := make([]storage.PolkaStats, 0, len(names))
+	var objects int
+	var objectBytes int64
+	for _, n := range names {
+		st, err := s.Store.StatsForPolka(n)
+		if err != nil {
+			st = storage.PolkaStats{Name: n}
+		}
+		polki = append(polki, st)
+		objects += st.Objects
+		objectBytes += st.Bytes
+	}
+	snap := metrics.Collect()
+	nodes := s.Reg.Snapshot()
+	healthy := 0
+	for _, n := range nodes {
+		if n.Healthy {
+			healthy++
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"node_id":            s.Cfg.NodeID,
+		"replication_factor": s.Cfg.ReplicationFactor,
+		"nodes_total":        len(nodes),
+		"nodes_healthy":      healthy,
+		"nodes":              nodes,
+		"polki_count":        len(polki),
+		"objects_count":      objects,
+		"objects_bytes":      objectBytes,
+		"polki":              polki,
+		"metrics":            snap,
+		"terminology": map[string]string{
+			"bucket": "полка",
+			"store":  "кладовка",
+		},
+	})
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {

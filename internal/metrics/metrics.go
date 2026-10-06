@@ -136,6 +136,9 @@ func PathTemplate(path string) string {
 		return "/" + parts[0]
 	case "api":
 		if len(parts) > 1 {
+			if parts[1] == "polki" && len(parts) > 2 {
+				return "/api/polki/{name}"
+			}
 			return "/api/" + parts[1]
 		}
 		return "/api"
@@ -174,6 +177,53 @@ type statusRecorder struct {
 func (s *statusRecorder) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)
+}
+
+// Snapshot is a JSON-friendly view of live counters for the dashboard.
+type Snapshot struct {
+	UptimeSeconds      float64            `json:"uptime_seconds"`
+	HTTPRequestsTotal  uint64             `json:"http_requests_total"`
+	S3OperationsTotal  uint64             `json:"s3_operations_total"`
+	BytesUploaded      uint64             `json:"bytes_uploaded_total"`
+	BytesDownloaded    uint64             `json:"bytes_downloaded_total"`
+	StorageUsedBytes   uint64             `json:"storage_used_bytes"`
+	StorageTotalBytes  uint64             `json:"storage_total_bytes"`
+	ReplicationPublished uint64           `json:"replication_published_total"`
+	ReplicationOK      uint64             `json:"replication_ok_total"`
+	ReplicationFailed  uint64             `json:"replication_failed_total"`
+	S3ByOperation      map[string]uint64  `json:"s3_by_operation"`
+	HTTPByStatus       map[string]uint64  `json:"http_by_status"`
+}
+
+// Collect builds a Snapshot from in-memory metrics.
+func Collect() Snapshot {
+	snap := Snapshot{
+		UptimeSeconds:        time.Since(startTime).Seconds(),
+		StorageUsedBytes:     storageUsed.Load(),
+		StorageTotalBytes:    storageTotal.Load(),
+		ReplicationPublished: replPublished.Load(),
+		ReplicationOK:        replOK.Load(),
+		ReplicationFailed:    replFailed.Load(),
+		S3ByOperation:        map[string]uint64{},
+		HTTPByStatus:         map[string]uint64{},
+	}
+	forEachCounter(&httpRequests, func(key string, v uint64) {
+		snap.HTTPRequestsTotal += v
+		parts := strings.Split(key, "|")
+		if len(parts) == 3 {
+			snap.HTTPByStatus[parts[2]] += v
+		}
+	})
+	forEachCounter(&s3Ops, func(key string, v uint64) {
+		snap.S3OperationsTotal += v
+		parts := strings.SplitN(key, "|", 2)
+		if len(parts) == 2 {
+			snap.S3ByOperation[parts[0]] += v
+		}
+	})
+	forEachCounter(&bytesUp, func(_ string, v uint64) { snap.BytesUploaded += v })
+	forEachCounter(&bytesDown, func(_ string, v uint64) { snap.BytesDownloaded += v })
+	return snap
 }
 
 // Handler serves Prometheus exposition format at /metrics.
