@@ -24,7 +24,9 @@ import (
 	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
 	"github.com/rkislov/kladovka/internal/config"
+	"github.com/rkislov/kladovka/internal/metrics"
 	"github.com/rkislov/kladovka/internal/storage"
+	"github.com/rkislov/kladovka/internal/webui"
 )
 
 // Server wires storage, auth and cluster into HTTP handlers.
@@ -36,15 +38,65 @@ type Server struct {
 	Reg   *cluster.Registry
 }
 
-// Handler returns the root mux.
+// Handler returns the root mux with Prometheus metrics middleware.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/internal/health", s.handleInternalHealth)
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
 	mux.HandleFunc("/cluster", s.handleCluster)
+	mux.Handle("/metrics", metrics.Handler(s.refreshMetrics))
+	mux.Handle("/internal/prometheus-sd", metrics.SDHandler(s.Reg, "/metrics"))
+	mux.HandleFunc("/api/polki", s.handleAPIPolki)
+	mux.HandleFunc("/api/polki/", s.handleAPIPolki)
+	mux.Handle("/ui/", webui.Handler())
+	mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/ui/", http.StatusFound)
+	})
 	mux.HandleFunc("/", s.handleS3)
-	return mux
+	return metrics.Middleware(mux)
+}
+
+func (s *Server) refreshMetrics() {
+	used, total, _ := s.Store.DiskUsage()
+	metrics.UpdateStorage(used, total)
+	s.Reg.SetSelfUsed(used)
+	for _, n := range s.Reg.Snapshot() {
+		metrics.UpdateClusterNode(n.NodeID, n.Healthy, n.UsedBytes)
+	}
+}
+
+func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch r.Method {
+	case http.MethodGet:
+		names, err := s.Store.ListPolki()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"polki": names})
+	case http.MethodPost:
+		var body struct {
+			Name string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+			http.Error(w, "нужно поле name", http.StatusBadRequest)
+			return
+		}
+		if err := s.Store.CreatePolka(body.Name); err != nil {
+			if errors.Is(err, storage.ErrPolkaExists) {
+				http.Error(w, err.Error(), http.StatusConflict)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]string{"polka": body.Name})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -162,7 +214,12 @@ func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {
 
 func (s *Server) handleS3(w http.ResponseWriter, r *http.Request) {
 	// Skip auth for already-handled prefixes (mux may still hit / for some cases).
-	if strings.HasPrefix(r.URL.Path, "/internal/") || r.URL.Path == "/healthz" || r.URL.Path == "/cluster" {
+	if strings.HasPrefix(r.URL.Path, "/internal/") ||
+		strings.HasPrefix(r.URL.Path, "/ui") ||
+		strings.HasPrefix(r.URL.Path, "/api/") ||
+		r.URL.Path == "/healthz" ||
+		r.URL.Path == "/cluster" ||
+		r.URL.Path == "/metrics" {
 		http.NotFound(w, r)
 		return
 	}
@@ -194,6 +251,7 @@ func (s *Server) handleListPolki(w http.ResponseWriter, r *http.Request) {
 		writeS3Error(w, st, code, msg, "/")
 		return
 	}
+	metrics.RecordS3Operation("ListBuckets", "_")
 	writeXML(w, http.StatusOK, listBucketsXML(names))
 }
 
@@ -210,6 +268,7 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 			writeS3Error(w, st, code, msg, "/"+polka)
 			return
 		}
+		metrics.RecordS3Operation("CreateBucket", polka)
 		w.WriteHeader(http.StatusOK)
 	case http.MethodHead:
 		ok, err := s.Store.PolkaExists(polka)
@@ -244,6 +303,7 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 			writeS3Error(w, st, code, msg, "/"+polka)
 			return
 		}
+		metrics.RecordS3Operation("ListObjectsV2", polka)
 		writeXML(w, http.StatusOK, listObjectsXML(polka, prefix, startAfter, maxKeys, objs, truncated))
 	default:
 		writeS3Error(w, http.StatusMethodNotAllowed, "MethodNotAllowed", "method not allowed", "/"+polka)
@@ -251,6 +311,9 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 }
 
 func (s *Server) handleObject(w http.ResponseWriter, r *http.Request, polka, key string) {
+	if s.handleObjectMultipart(w, r, polka, key) {
+		return
+	}
 	switch r.Method {
 	case http.MethodPut:
 		s.putObject(w, r, polka, key)
@@ -293,8 +356,15 @@ func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key st
 		return
 	}
 	if s.Cfg.ReplicationFactor > 1 {
-		_ = s.Rep.ReplicatePut(r.Context(), polka, key, body, ct)
+		if err := s.Rep.ReplicatePut(r.Context(), polka, key, body, ct); err != nil {
+			metrics.RecordReplicationFailed()
+		} else {
+			metrics.RecordReplicationOK()
+			metrics.RecordReplicationPublished(s.Cfg.ReplicationFactor - 1)
+		}
 	}
+	metrics.RecordS3Operation("PutObject", polka)
+	metrics.RecordBytesUploaded(polka, int64(len(body)))
 	w.Header().Set("ETag", meta.ETag)
 	w.WriteHeader(http.StatusOK)
 }
@@ -308,7 +378,9 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 		w.Header().Set("Content-Length", strconv.FormatInt(meta.Size, 10))
 		w.Header().Set("Last-Modified", meta.LastModified.UTC().Format(http.TimeFormat))
 		w.Header().Set("x-amz-kladovka-polka", polka)
-		_, _ = io.Copy(w, rc)
+		n, _ := io.Copy(w, rc)
+		metrics.RecordS3Operation("GetObject", polka)
+		metrics.RecordBytesDownloaded(polka, n)
 		return
 	}
 	if !errors.Is(err, storage.ErrObjectNotFound) {
@@ -336,6 +408,7 @@ func (s *Server) headObject(w http.ResponseWriter, r *http.Request, polka, key s
 	w.Header().Set("Content-Type", meta.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(meta.Size, 10))
 	w.Header().Set("Last-Modified", meta.LastModified.UTC().Format(http.TimeFormat))
+	metrics.RecordS3Operation("HeadObject", polka)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -353,6 +426,7 @@ func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, polka, key
 	if s.Cfg.ReplicationFactor > 1 {
 		s.Rep.ReplicateDelete(r.Context(), polka, key)
 	}
+	metrics.RecordS3Operation("DeleteObject", polka)
 	w.WriteHeader(http.StatusNoContent)
 }
 

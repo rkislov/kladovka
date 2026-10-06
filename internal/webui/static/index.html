@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Кладовка</title>
+  <style>
+    :root {
+      --bg: #1a1612;
+      --panel: #2a231c;
+      --text: #f3ebe2;
+      --muted: #b8a99a;
+      --accent: #d97706;
+      --ok: #65a30d;
+      --bad: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(900px 400px at 10% -10%, #3b2f24 0%, transparent 55%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.5rem 1.25rem 0.5rem;
+      border-bottom: 1px solid #3f342a;
+    }
+    h1 {
+      margin: 0;
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      letter-spacing: 0.02em;
+    }
+    .sub { color: var(--muted); margin-top: 0.35rem; }
+    main { padding: 1.25rem; display: grid; gap: 1rem; max-width: 960px; margin: 0 auto; }
+    section {
+      background: var(--panel);
+      border: 1px solid #3f342a;
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
+    button, input {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid #564536;
+      background: #1f1914;
+      color: var(--text);
+      padding: 0.45rem 0.7rem;
+    }
+    button {
+      background: var(--accent);
+      border-color: #b45309;
+      color: #1a1208;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    ul { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+    li {
+      padding: 0.45rem 0;
+      border-bottom: 1px solid #3f342a;
+      display: flex; justify-content: space-between; gap: 0.75rem;
+    }
+    .pill { font-size: 0.8rem; padding: 0.15rem 0.45rem; border-radius: 999px; }
+    .ok { background: color-mix(in srgb, var(--ok) 25%, transparent); color: #bbf7d0; }
+    .bad { background: color-mix(in srgb, var(--bad) 25%, transparent); color: #fecaca; }
+    pre { white-space: pre-wrap; color: var(--muted); font-size: 0.85rem; }
+    a { color: #fbbf24; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Кладовка</h1>
+    <p class="sub">Объектное хранилище · полка = bucket · один бинарник</p>
+  </header>
+  <main>
+    <section>
+      <h2>Состояние</h2>
+      <div class="row">
+        <button id="refresh">Обновить</button>
+        <span id="node" class="sub"></span>
+      </div>
+      <pre id="cluster">загрузка…</pre>
+    </section>
+    <section>
+      <h2>Полки</h2>
+      <div class="row">
+        <input id="polka" placeholder="имя полки" />
+        <button id="create">Создать полку</button>
+      </div>
+      <p class="sub">Создание через S3 API требует SigV4. Здесь показан список из локального API дашборда.</p>
+      <ul id="polki"></ul>
+    </section>
+    <section>
+      <h2>Справка</h2>
+      <p class="sub">
+        Health: <a href="/healthz">/healthz</a> ·
+        Кластер: <a href="/cluster">/cluster</a> ·
+        Метрики: <a href="/metrics">/metrics</a> ·
+        Prometheus SD: <a href="/internal/prometheus-sd">/internal/prometheus-sd</a> ·
+        Полки API: <a href="/api/polki">/api/polki</a>
+      </p>
+    </section>
+  </main>
+  <script>
+    async function loadCluster() {
+      const r = await fetch('/cluster');
+      const j = await r.json();
+      document.getElementById('node').textContent = 'нода: ' + j.this_node + ' · RF=' + j.replication_factor;
+      document.getElementById('cluster').textContent = JSON.stringify(j, null, 2);
+      const list = document.getElementById('polki');
+      list.innerHTML = '';
+      (j.nodes || []).forEach(n => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${n.node_id}</span><span class="pill ${n.healthy ? 'ok' : 'bad'}">${n.healthy ? 'ok' : 'down'}</span>`;
+        list.appendChild(li);
+      });
+    }
+    async function loadPolki() {
+      const r = await fetch('/api/polki');
+      if (!r.ok) return;
+      const j = await r.json();
+      const list = document.getElementById('polki');
+      list.innerHTML = '';
+      (j.polki || []).forEach(name => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>полка: <strong>${name}</strong></span>`;
+        list.appendChild(li);
+      });
+    }
+    document.getElementById('refresh').onclick = async () => { await loadCluster(); await loadPolki(); };
+    document.getElementById('create').onclick = async () => {
+      const name = document.getElementById('polka').value.trim();
+      if (!name) return alert('Укажите имя полки');
+      const r = await fetch('/api/polki', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        alert('Ошибка: ' + t);
+        return;
+      }
+      document.getElementById('polka').value = '';
+      await loadPolki();
+    };
+    loadCluster().then(loadPolki);
+  </script>
+</body>
+</html>

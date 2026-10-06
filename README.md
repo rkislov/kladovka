@@ -18,12 +18,34 @@
 ## Возможности
 
 - Path-style S3 API: ListBuckets / CreateBucket / PutObject / GetObject / HeadObject / DeleteObject / ListObjectsV2
+- Multipart Upload (Create / UploadPart / Complete / Abort / ListParts)
 - Полка = каталог на диске под `DATA_ROOT`
 - AWS Signature Version 4 (заголовок `Authorization` и базовый presigned URL)
 - Кластер: consistent hashing по `полка/ключ`, primary + реплики, фоновый health пиров
 - Межнодовый internal API (`/internal/health`, `/internal/object/...`)
+- Встроенный веб-UI: `/ui/`
+- Простой JSON API полок: `/api/polki`
+- **Метрики Prometheus**: `GET /metrics` (HTTP, S3, диск, кластер, репликация)
+- **Prometheus HTTP SD**: `GET /internal/prometheus-sd`
 - HTTPS: сертификат и ключ через переменные окружения (`TLS_CERT_FILE`, `TLS_KEY_FILE`)
 - Один исполняемый файл `kladovka`
+
+## Готовые сборки
+
+Релизы на GitHub: [Releases](https://github.com/rkislov/kladovka/releases)
+
+| Файл | Платформа |
+|------|-----------|
+| `kladovka-*-linux-amd64` | Linux x86_64 / серверы |
+| `kladovka-*-linux-arm64` / `*-raspberrypi-64bit` | Raspberry Pi OS 64-bit, ARM64 |
+| `kladovka-*-linux-armv7` / `*-raspberrypi-32bit` | Raspberry Pi 32-bit (armv7) |
+| `kladovka-*-linux-armv6` | Старые Pi / armv6 |
+
+Локальная кросс-сборка:
+
+```bash
+make release VERSION=0.2.0
+```
 
 ---
 
@@ -133,7 +155,29 @@ export REPLICATION_FACTOR=2
 | `GET` | `/<полка>/<ключ>` | Скачать объект |
 | `GET` | `/cluster` | Состояние кластера (JSON) |
 | `GET` | `/healthz` | Liveness |
+| `GET` | `/ui/` | Встроенный веб-интерфейс |
+| `GET/POST` | `/api/polki` | Список / создание полок (JSON) |
+| `GET` | `/metrics` | Метрики Prometheus |
+| `GET` | `/internal/prometheus-sd` | HTTP SD для Prometheus |
 | `GET` | `/internal/health` | Health для пиров |
+
+### Метрики (Prometheus)
+
+Пример: `monitoring/prometheus.yml` в репозитории.
+
+Основные серии:
+
+| Метрика | Тип | Описание |
+|---------|-----|----------|
+| `kladovka_http_requests_total` | counter | HTTP-запросы |
+| `kladovka_http_request_duration_seconds_*` | counter | Латентность |
+| `kladovka_s3_operations_total` | counter | S3-операции (`operation`, `polka`) |
+| `kladovka_s3_bytes_uploaded_total` | counter | Байты загрузки |
+| `kladovka_s3_bytes_downloaded_total` | counter | Байты выдачи |
+| `kladovka_storage_used_bytes` | gauge | Занято на ноде |
+| `kladovka_cluster_node_healthy` | gauge | Здоровье нод |
+| `kladovka_cluster_node_used_bytes` | gauge | Диск нод |
+| `kladovka_replication_*_total` | counter | Репликация |
 
 S3-операции требуют AWS Signature Version 4.
 

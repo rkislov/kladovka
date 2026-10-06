@@ -140,6 +140,8 @@ func mapStorageErr(err error) (int, string, string) {
 		return http.StatusNotFound, "NoSuchKey", "The specified key does not exist"
 	case storage.ErrPolkaNotEmpty:
 		return http.StatusConflict, "BucketNotEmpty", "The shelf (полка) you tried to delete is not empty"
+	case storage.ErrNoSuchUpload:
+		return http.StatusNotFound, "NoSuchUpload", "The specified multipart upload does not exist"
 	default:
 		return http.StatusInternalServerError, "InternalError", fmt.Sprintf("%v", err)
 	}

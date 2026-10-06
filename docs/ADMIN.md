@@ -43,6 +43,14 @@ WantedBy=multi-user.target
 - `NODE_ID` рекомендуется в виде `host:port`, совпадающем с `NODE_URL`.
 - Для HTTPS между нодами используйте валидные сертификаты или временно `CLUSTER_VERIFY_TLS=false` только в лаборатории.
 
+## Мониторинг
+
+- `GET /metrics` — Prometheus exposition (без SigV4).
+- `GET /internal/prometheus-sd` — список целей для HTTP SD.
+- Пример конфига: `monitoring/prometheus.yml`.
+
+Рекомендуется scrape каждые 15s. После подключения пиров gauges кластера обновляются на каждом scrape.
+
 ## Резервное копирование
 
 Копируйте каталог `DATA_ROOT` (каждая полка — подкаталог). Предпочтительно при остановленной записи или снимке ФС.
