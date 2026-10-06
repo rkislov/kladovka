@@ -1,0 +1,11 @@
+/bin/
+/data/
+*.tmp
+.DS_Store
+*.pem
+*.crt
+*.key
+.env
+.idea/
+.vscode/
+coverage.out
