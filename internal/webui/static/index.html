@@ -7,14 +7,17 @@
   <style>
     :root {
       --bg: #0e0c0a;
-      --panel: rgba(26, 20, 14, 0.78);
-      --panel-border: rgba(255, 200, 120, 0.14);
+      --panel: rgba(26, 20, 14, 0.82);
+      --panel-hover: rgba(40, 30, 20, 0.92);
+      --panel-border: rgba(255, 200, 120, 0.16);
       --text: #f3ebe2;
       --muted: #b8a99a;
       --accent: #d97706;
+      --accent-hi: #f59e0b;
       --ok: #65a30d;
       --bad: #dc2626;
       --stencil: rgba(0, 0, 0, 0.55);
+      --focus: rgba(245, 158, 11, 0.45);
     }
     * { box-sizing: border-box; }
     body {
@@ -25,10 +28,7 @@
       background-color: var(--bg);
       background-image:
         linear-gradient(180deg, rgba(10, 8, 6, 0.55) 0%, rgba(10, 8, 6, 0.72) 100%),
-        image-set(
-          url("img/ui-bg.jpg") 1x,
-          url("img/ui-bg@2x.jpg") 2x
-        );
+        image-set(url("img/ui-bg.jpg") 1x, url("img/ui-bg@2x.jpg") 2x);
       background-size: cover;
       background-position: center top;
       background-attachment: fixed;
@@ -42,20 +42,23 @@
       z-index: 0;
       background:
         radial-gradient(ellipse 70% 45% at 8% 0%, rgba(217, 119, 6, 0.18), transparent 60%),
-        repeating-linear-gradient(
-          0deg,
-          transparent,
-          transparent 2px,
-          rgba(0, 0, 0, 0.03) 2px,
-          rgba(0, 0, 0, 0.03) 3px
-        );
+        repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 3px);
       mix-blend-mode: soft-light;
     }
-    header, main { position: relative; z-index: 1; }
+    header, main, .toast { position: relative; z-index: 1; }
     header {
-      padding: 1.75rem 1.25rem 1rem;
+      padding: 1.5rem 1.25rem 1rem;
       border-bottom: 1px solid rgba(255, 200, 120, 0.12);
       background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent);
+    }
+    .header-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      justify-content: space-between;
+      max-width: 1100px;
+      margin: 0 auto;
     }
     h1 {
       margin: 0;
@@ -63,15 +66,12 @@
       font-size: clamp(1.9rem, 4.5vw, 2.8rem);
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      text-shadow:
-        0 1px 0 rgba(0, 0, 0, 0.85),
-        2px 3px 0 var(--stencil),
-        0 0 24px rgba(217, 119, 6, 0.25);
+      text-shadow: 0 1px 0 rgba(0,0,0,0.85), 2px 3px 0 var(--stencil), 0 0 24px rgba(217,119,6,0.25);
     }
-    .sub { color: var(--muted); margin-top: 0.35rem; }
+    .sub { color: var(--muted); margin: 0.35rem 0 0; }
     .tag {
       display: inline-block;
-      margin-top: 0.65rem;
+      margin-top: 0.55rem;
       font-size: 0.72rem;
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -80,144 +80,547 @@
       padding: 0.2rem 0.55rem;
       background: rgba(0, 0, 0, 0.35);
     }
-    main { padding: 1.25rem; display: grid; gap: 1rem; max-width: 960px; margin: 0 auto; }
+    .toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    main {
+      padding: 1.25rem;
+      display: grid;
+      gap: 1rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
     section {
       background: var(--panel);
       border: 1px solid var(--panel-border);
-      border-radius: 4px;
+      border-radius: 6px;
       padding: 1rem 1.1rem;
       backdrop-filter: blur(8px);
-      box-shadow:
-        0 0 0 1px rgba(0, 0, 0, 0.35) inset,
-        0 12px 40px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset, 0 12px 40px rgba(0,0,0,0.35);
+    }
+    .section-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
     }
     h2 {
-      margin: 0 0 0.75rem;
+      margin: 0;
       font-size: 0.95rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: #fbbf24;
     }
-    button, input {
+    button, input, .link-btn {
       font: inherit;
-      border-radius: 3px;
+      border-radius: 4px;
       border: 1px solid #564536;
       background: #1f1914;
       color: var(--text);
-      padding: 0.45rem 0.7rem;
+      padding: 0.55rem 0.85rem;
+      transition: transform 0.12s ease, filter 0.12s ease, background 0.12s ease, border-color 0.12s ease;
     }
-    button {
+    button, .link-btn {
       background: var(--accent);
       border-color: #b45309;
       color: #1a1208;
       font-weight: 700;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      user-select: none;
     }
-    button:hover { filter: brightness(1.08); }
+    button:hover, .link-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    button:active, .link-btn:active { transform: translateY(0); filter: brightness(0.96); }
+    button:focus-visible, .link-btn:focus-visible, input:focus-visible, .stat, .polka, .node {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+    button.ghost, .link-btn.ghost {
+      background: rgba(0,0,0,0.35);
+      color: #fbbf24;
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    input {
+      min-width: 12rem;
+      flex: 1;
+    }
+    input:focus { border-color: var(--accent-hi); }
     .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-    ul { list-style: none; padding: 0; margin: 0.5rem 0 0; }
-    li {
-      padding: 0.45rem 0;
-      border-bottom: 1px dashed rgba(255, 200, 120, 0.12);
-      display: flex; justify-content: space-between; gap: 0.75rem;
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.65rem;
     }
-    .pill { font-size: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 2px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .stat {
+      appearance: none;
+      width: 100%;
+      text-align: left;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,200,120,0.12);
+      border-radius: 6px;
+      padding: 0.85rem 0.9rem;
+      color: var(--text);
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 500;
+      display: block;
+    }
+    .stat:hover {
+      background: var(--panel-hover);
+      border-color: rgba(251, 191, 36, 0.4);
+      transform: translateY(-2px);
+    }
+    .stat .label {
+      display: block;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .stat .value {
+      display: block;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fde68a;
+      line-height: 1.2;
+    }
+    .stat .hint {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .meter {
+      margin-top: 0.85rem;
+      background: rgba(0,0,0,0.4);
+      border-radius: 999px;
+      height: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255,200,120,0.1);
+    }
+    .meter > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #b45309, #fbbf24);
+      transition: width 0.4s ease;
+    }
+    .meter-label { margin-top: 0.4rem; font-size: 0.8rem; color: var(--muted); }
+    .polki, .nodes { display: grid; gap: 0.55rem; }
+    .polka, .node {
+      width: 100%;
+      text-align: left;
+      background: rgba(0,0,0,0.32);
+      border: 1px solid rgba(255,200,120,0.12);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.85rem 0.95rem;
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 500;
+      display: grid;
+      gap: 0.35rem;
+    }
+    .polka:hover, .node:hover {
+      background: var(--panel-hover);
+      border-color: rgba(251, 191, 36, 0.45);
+      transform: translateY(-1px);
+    }
+    .polka.open, .node.open { border-color: var(--accent-hi); box-shadow: 0 0 0 1px rgba(245,158,11,0.25); }
+    .polka-top, .node-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .polka strong, .node strong { font-size: 1.05rem; }
+    .meta { color: var(--muted); font-size: 0.85rem; }
+    .pill {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
     .ok { background: color-mix(in srgb, var(--ok) 25%, transparent); color: #bbf7d0; }
     .bad { background: color-mix(in srgb, var(--bad) 25%, transparent); color: #fecaca; }
-    pre {
-      white-space: pre-wrap;
-      color: var(--muted);
-      font-size: 0.85rem;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 200, 120, 0.08);
-      padding: 0.75rem;
-      border-radius: 3px;
+    .detail {
+      display: none;
+      margin-top: 0.55rem;
+      padding-top: 0.55rem;
+      border-top: 1px dashed rgba(255,200,120,0.15);
     }
-    a { color: #fbbf24; }
+    .polka.open .detail, .node.open .detail { display: block; }
+    .objs { list-style: none; padding: 0; margin: 0; }
+    .objs li {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px dashed rgba(255,200,120,0.08);
+      font-size: 0.88rem;
+    }
+    .objs li:last-child { border-bottom: 0; }
+    .empty { color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
+    .quick {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.5rem;
+    }
+    .quick a {
+      text-decoration: none;
+      color: #fde68a;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,200,120,0.14);
+      border-radius: 6px;
+      padding: 0.75rem 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+    }
+    .quick a:hover {
+      background: var(--panel-hover);
+      border-color: rgba(251, 191, 36, 0.45);
+      transform: translateY(-2px);
+    }
+    .quick a span { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+    .quick a strong { font-size: 0.95rem; }
+    .toast {
+      position: fixed;
+      right: 1rem;
+      bottom: 1rem;
+      z-index: 20;
+      background: #1a1208;
+      color: #fde68a;
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      max-width: min(360px, calc(100vw - 2rem));
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.err { color: #fecaca; border-color: rgba(220, 38, 38, 0.5); }
+    .ops {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.75rem;
+    }
+    .chip {
+      font-size: 0.78rem;
+      padding: 0.3rem 0.55rem;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,200,120,0.12);
+      color: var(--muted);
+    }
+    .chip b { color: #fde68a; font-weight: 700; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Кладовка</h1>
-    <p class="sub">Объектное хранилище · полка = bucket · один бинарник</p>
-    <span class="tag">street storage · stencil edition</span>
+    <div class="header-row">
+      <div>
+        <h1>Кладовка</h1>
+        <p class="sub">Объектное хранилище</p>
+        <span class="tag">street storage · stencil edition</span>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="ghost" id="refresh" title="Обновить сейчас">↻ Обновить</button>
+        <label class="meta" style="display:flex;align-items:center;gap:0.35rem;cursor:pointer;">
+          <input type="checkbox" id="autorefresh" checked style="min-width:auto;accent-color:#d97706;" />
+          авто · 5с
+        </label>
+      </div>
+    </div>
   </header>
+
   <main>
-    <section>
-      <h2>Состояние</h2>
-      <div class="row">
-        <button id="refresh">Обновить</button>
-        <span id="node" class="sub"></span>
+    <section id="sec-stats">
+      <div class="section-head">
+        <h2>Статистика</h2>
+        <span class="meta" id="updated">загрузка…</span>
       </div>
-      <pre id="cluster">загрузка…</pre>
+      <div class="stats" id="stats"></div>
+      <div class="meter" aria-hidden="true"><span id="diskbar"></span></div>
+      <div class="meter-label" id="disklabel">диск: —</div>
+      <div class="ops" id="ops"></div>
     </section>
-    <section>
-      <h2>Полки</h2>
-      <div class="row">
-        <input id="polka" placeholder="имя полки" />
-        <button id="create">Создать полку</button>
+
+    <section id="sec-polki">
+      <div class="section-head">
+        <h2>Полки</h2>
+        <span class="meta" id="polki-count"></span>
       </div>
-      <p class="sub">Создание через S3 API требует SigV4. Здесь показан список из локального API дашборда.</p>
-      <ul id="polki"></ul>
+      <div class="row" style="margin-bottom:0.75rem;">
+        <input id="polka" placeholder="имя новой полки" autocomplete="off" />
+        <button type="button" id="create">+ Создать</button>
+      </div>
+      <div class="polki" id="polki"></div>
     </section>
+
+    <section id="sec-nodes">
+      <div class="section-head">
+        <h2>Кластер</h2>
+        <span class="meta" id="nodes-count"></span>
+      </div>
+      <div class="nodes" id="nodes"></div>
+    </section>
+
     <section>
-      <h2>Справка</h2>
-      <p class="sub">
-        Health: <a href="/healthz">/healthz</a> ·
-        Кластер: <a href="/cluster">/cluster</a> ·
-        Метрики: <a href="/metrics">/metrics</a> ·
-        Prometheus SD: <a href="/internal/prometheus-sd">/internal/prometheus-sd</a> ·
-        Полки API: <a href="/api/polki">/api/polki</a>
-      </p>
+      <div class="section-head"><h2>Быстрые ссылки</h2></div>
+      <div class="quick">
+        <a href="/healthz" target="_blank" rel="noopener"><span>health</span><strong>/healthz</strong></a>
+        <a href="/cluster" target="_blank" rel="noopener"><span>кластер json</span><strong>/cluster</strong></a>
+        <a href="/api/stats" target="_blank" rel="noopener"><span>статистика</span><strong>/api/stats</strong></a>
+        <a href="/metrics" target="_blank" rel="noopener"><span>prometheus</span><strong>/metrics</strong></a>
+        <a href="/api/polki" target="_blank" rel="noopener"><span>полки api</span><strong>/api/polki</strong></a>
+        <a href="/internal/prometheus-sd" target="_blank" rel="noopener"><span>service discovery</span><strong>/internal/prometheus-sd</strong></a>
+      </div>
     </section>
   </main>
+
+  <div class="toast" id="toast" role="status"></div>
+
   <script>
-    async function loadCluster() {
-      const r = await fetch('/cluster');
-      const j = await r.json();
-      document.getElementById('node').textContent = 'нода: ' + j.this_node + ' · RF=' + j.replication_factor;
-      document.getElementById('cluster').textContent = JSON.stringify(j, null, 2);
-      const list = document.getElementById('polki');
-      list.innerHTML = '';
-      (j.nodes || []).forEach(n => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${n.node_id}</span><span class="pill ${n.healthy ? 'ok' : 'bad'}">${n.healthy ? 'ok' : 'down'}</span>`;
-        list.appendChild(li);
+    const $ = (id) => document.getElementById(id);
+    let timer = null;
+    let openPolka = null;
+
+    function fmtBytes(n) {
+      n = Number(n) || 0;
+      const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let i = 0;
+      while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+      return (i === 0 ? n : n.toFixed(n < 10 ? 1 : 0)) + ' ' + u[i];
+    }
+    function fmtUptime(sec) {
+      sec = Math.floor(Number(sec) || 0);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h > 0) return h + 'ч ' + m + 'м';
+      if (m > 0) return m + 'м ' + s + 'с';
+      return s + 'с';
+    }
+    function toast(msg, err) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.className = 'toast show' + (err ? ' err' : '');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+    function scrollTo(id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function renderStats(j) {
+      const m = j.metrics || {};
+      const used = m.storage_used_bytes || j.objects_bytes || 0;
+      const total = m.storage_total_bytes || 0;
+      const cards = [
+        { label: 'Полки', value: j.polki_count ?? 0, hint: 'нажми → список', go: 'sec-polki' },
+        { label: 'Объекты', value: j.objects_count ?? 0, hint: fmtBytes(j.objects_bytes), go: 'sec-polki' },
+        { label: 'Ноды', value: (j.nodes_healthy ?? 0) + '/' + (j.nodes_total ?? 0), hint: 'RF=' + (j.replication_factor ?? '—'), go: 'sec-nodes' },
+        { label: 'Аптайм', value: fmtUptime(m.uptime_seconds), hint: j.node_id || '', go: 'sec-nodes' },
+        { label: 'HTTP', value: m.http_requests_total ?? 0, hint: 'запросов', go: 'sec-stats' },
+        { label: 'S3 ops', value: m.s3_operations_total ?? 0, hint: 'операций', go: 'sec-stats' },
+        { label: 'Загрузка', value: fmtBytes(m.bytes_uploaded_total), hint: 'upload', go: 'sec-stats' },
+        { label: 'Выдача', value: fmtBytes(m.bytes_downloaded_total), hint: 'download', go: 'sec-stats' },
+      ];
+      $('stats').innerHTML = cards.map(c => `
+        <button type="button" class="stat" data-go="${c.go}">
+          <span class="label">${c.label}</span>
+          <span class="value">${c.value}</span>
+          <span class="hint">${c.hint}</span>
+        </button>`).join('');
+      $('stats').querySelectorAll('.stat').forEach(btn => {
+        btn.onclick = () => scrollTo(btn.dataset.go);
+      });
+
+      let pct = 0;
+      if (total > 0) pct = Math.min(100, Math.round((used / total) * 100));
+      else if (used > 0) pct = Math.min(100, 8 + Math.round(Math.log10(used + 1) * 8));
+      $('diskbar').style.width = pct + '%';
+      $('disklabel').textContent = total > 0
+        ? `диск: ${fmtBytes(used)} / ${fmtBytes(total)} (${pct}%)`
+        : `данные: ${fmtBytes(used)} · объектов ${fmtBytes(j.objects_bytes || 0)}`;
+
+      const ops = m.s3_by_operation || {};
+      const chips = Object.keys(ops).sort().map(k => `<span class="chip">${k}: <b>${ops[k]}</b></span>`);
+      const repl = `репликация ok ${m.replication_ok_total || 0} / fail ${m.replication_failed_total || 0}`;
+      chips.push(`<span class="chip">${repl}</span>`);
+      $('ops').innerHTML = chips.join('');
+      $('updated').textContent = 'обновлено ' + new Date().toLocaleTimeString();
+    }
+
+    async function renderPolki(polki) {
+      const box = $('polki');
+      $('polki-count').textContent = (polki || []).length + ' шт.';
+      if (!polki || !polki.length) {
+        box.innerHTML = '<p class="empty">Полок пока нет — создайте первую выше.</p>';
+        return;
+      }
+      box.innerHTML = polki.map(p => {
+        const name = p.name || p;
+        const objects = p.objects ?? '—';
+        const bytes = p.bytes != null ? fmtBytes(p.bytes) : '';
+        const open = openPolka === name ? ' open' : '';
+        return `
+          <button type="button" class="polka${open}" data-name="${escapeHtml(name)}">
+            <div class="polka-top">
+              <strong>${escapeHtml(name)}</strong>
+              <span class="pill ok">${objects} obj</span>
+            </div>
+            <div class="meta">${bytes || 'пусто'} · кликните, чтобы открыть</div>
+            <div class="detail"></div>
+          </button>`;
+      }).join('');
+
+      box.querySelectorAll('.polka').forEach(btn => {
+        btn.onclick = () => togglePolka(btn.dataset.name, btn);
+      });
+
+      if (openPolka) {
+        const btn = box.querySelector('.polka[data-name="' + CSS.escape(openPolka) + '"]');
+        if (btn) loadPolkaDetail(openPolka, btn);
+      }
+    }
+
+    async function togglePolka(name, btn) {
+      if (openPolka === name) {
+        openPolka = null;
+        btn.classList.remove('open');
+        btn.querySelector('.detail').innerHTML = '';
+        return;
+      }
+      openPolka = name;
+      document.querySelectorAll('.polka').forEach(b => {
+        b.classList.remove('open');
+        const d = b.querySelector('.detail');
+        if (d) d.innerHTML = '';
+      });
+      btn.classList.add('open');
+      await loadPolkaDetail(name, btn);
+    }
+
+    async function loadPolkaDetail(name, btn) {
+      const detail = btn.querySelector('.detail');
+      detail.innerHTML = '<span class="meta">загрузка объектов…</span>';
+      try {
+        const r = await fetch('/api/polki/' + encodeURIComponent(name));
+        if (!r.ok) throw new Error(await r.text());
+        const j = await r.json();
+        const objs = j.objects || [];
+        if (!objs.length) {
+          detail.innerHTML = '<p class="empty">Объектов нет. Загрузите через S3 PutObject.</p>';
+          return;
+        }
+        detail.innerHTML = '<ul class="objs">' + objs.map(o =>
+          '<li><span>' + escapeHtml(o.key) + '</span><span class="meta">' + fmtBytes(o.size) + '</span></li>'
+        ).join('') + '</ul>';
+      } catch (e) {
+        detail.innerHTML = '<p class="empty">Ошибка: ' + escapeHtml(e.message) + '</p>';
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function renderNodes(nodes, thisNode, rf) {
+      $('nodes-count').textContent = `нода ${thisNode || '—'} · RF=${rf ?? '—'}`;
+      const box = $('nodes');
+      if (!nodes || !nodes.length) {
+        box.innerHTML = '<p class="empty">Нет данных о нодах.</p>';
+        return;
+      }
+      box.innerHTML = nodes.map(n => `
+        <button type="button" class="node" data-url="${n.url || ''}">
+          <div class="node-top">
+            <strong>${n.node_id}</strong>
+            <span class="pill ${n.healthy ? 'ok' : 'bad'}">${n.healthy ? 'ok' : 'down'}</span>
+          </div>
+          <div class="meta">${n.url || '—'} · ${fmtBytes(n.used_bytes || 0)}${n.last_error ? ' · ' + n.last_error : ''}</div>
+          <div class="detail meta">Клик — открыть ноду в новой вкладке</div>
+        </button>`).join('');
+      box.querySelectorAll('.node').forEach(btn => {
+        btn.onclick = () => {
+          const url = btn.dataset.url;
+          if (url) window.open(url, '_blank', 'noopener');
+          else toast('URL ноды неизвестен', true);
+        };
       });
     }
-    async function loadPolki() {
-      const r = await fetch('/api/polki');
-      if (!r.ok) return;
-      const j = await r.json();
-      const list = document.getElementById('polki');
-      list.innerHTML = '';
-      (j.polki || []).forEach(name => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>полка: <strong>${name}</strong></span>`;
-        list.appendChild(li);
-      });
+
+    async function refresh() {
+      const btn = $('refresh');
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/stats');
+        if (!r.ok) throw new Error(await r.text());
+        const j = await r.json();
+        renderStats(j);
+        await renderPolki(j.polki || []);
+        renderNodes(j.nodes || [], j.node_id, j.replication_factor);
+      } catch (e) {
+        toast('Не удалось обновить: ' + e.message, true);
+      } finally {
+        btn.disabled = false;
+      }
     }
-    document.getElementById('refresh').onclick = async () => { await loadCluster(); await loadPolki(); };
-    document.getElementById('create').onclick = async () => {
-      const name = document.getElementById('polka').value.trim();
-      if (!name) return alert('Укажите имя полки');
+
+    async function createPolka() {
+      const name = $('polka').value.trim();
+      if (!name) { toast('Укажите имя полки', true); $('polka').focus(); return; }
       const r = await fetch('/api/polki', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
       });
       if (!r.ok) {
-        const t = await r.text();
-        alert('Ошибка: ' + t);
+        toast('Ошибка: ' + await r.text(), true);
         return;
       }
-      document.getElementById('polka').value = '';
-      await loadPolki();
-    };
-    loadCluster().then(loadPolki);
+      $('polka').value = '';
+      toast('Полка «' + name + '» создана');
+      openPolka = name;
+      await refresh();
+      scrollTo('sec-polki');
+    }
+
+    function schedule() {
+      clearInterval(timer);
+      if ($('autorefresh').checked) timer = setInterval(refresh, 5000);
+    }
+
+    $('refresh').onclick = refresh;
+    $('create').onclick = createPolka;
+    $('polka').addEventListener('keydown', (e) => { if (e.key === 'Enter') createPolka(); });
+    $('autorefresh').onchange = schedule;
+
+    refresh();
+    schedule();
   </script>
 </body>
 </html>

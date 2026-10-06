@@ -347,6 +347,45 @@ func (s *Store) ListObjects(polka, prefix string, maxKeys int, startAfter string
 	return out, false, nil
 }
 
+// PolkaStats is a summary of one shelf for the dashboard.
+type PolkaStats struct {
+	Name    string `json:"name"`
+	Objects int    `json:"objects"`
+	Bytes   int64  `json:"bytes"`
+}
+
+// StatsForPolka counts objects and bytes on a shelf (skips meta/tmp files).
+func (s *Store) StatsForPolka(polka string) (PolkaStats, error) {
+	st := PolkaStats{Name: polka}
+	ok, err := s.PolkaExists(polka)
+	if err != nil {
+		return st, err
+	}
+	if !ok {
+		return st, ErrPolkaNotFound
+	}
+	pp, err := s.polkaPath(polka)
+	if err != nil {
+		return st, err
+	}
+	err = filepath.WalkDir(pp, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if strings.HasSuffix(d.Name(), ".kladovka-meta.json") || strings.HasSuffix(d.Name(), ".tmp") {
+			return nil
+		}
+		info, e := d.Info()
+		if e != nil {
+			return nil
+		}
+		st.Objects++
+		st.Bytes += info.Size()
+		return nil
+	})
+	return st, err
+}
+
 // DiskUsage returns used and total bytes for the data root volume (best-effort).
 func (s *Store) DiskUsage() (used, total uint64, err error) {
 	var size int64
