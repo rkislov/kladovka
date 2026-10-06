@@ -209,6 +209,17 @@ make test
 
 ---
 
+## UI и обои
+
+Веб-UI (`/ui/`) — stencil / street-art оформление на бетонной текстуре.
+
+- Скриншоты: [`docs/screenshots/`](./docs/screenshots/)
+- Wallpaper pack (1080p → 5K Retina, MacBook Retina): [`docs/wallpapers/`](./docs/wallpapers/)
+
+![UI desktop](./docs/screenshots/ui-desktop.png)
+
+---
+
 ## Лицензия
 
 Copyright © 2026 Роман Сергеевич Кислов
