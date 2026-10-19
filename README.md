@@ -53,7 +53,7 @@
 Локальная кросс-сборка:
 
 ```bash
-make release VERSION=0.2.0
+make release VERSION=0.3.0
 ```
 
 ---

@@ -22,7 +22,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Test
-        run: go test ./...
+        run: |
+          go test -race ./...
+          go vet ./...
 
       - name: Build release binaries
         run: |
@@ -32,7 +34,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: docs/releases/${{ github.ref_name }}.md
+          fail_on_unmatched_files: true
           files: |
             dist/*
         env:
