@@ -44,8 +44,9 @@ type ObjectMeta struct {
 
 // Store is a filesystem-backed object store. Polka = S3 bucket directory.
 type Store struct {
-	root string
-	mu   sync.RWMutex
+	root        string
+	mu          sync.RWMutex
+	multipartMu sync.Mutex
 }
 
 // New creates a store under root and ensures the directory exists.
@@ -59,8 +60,12 @@ func New(root string) (*Store, error) {
 
 func (s *Store) polkaPath(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || strings.Contains(name, "..") || strings.ContainsAny(name, `/\`) {
+	if name == "" || strings.HasPrefix(name, ".") || strings.Contains(name, "..") || strings.ContainsAny(name, `/\`) {
 		return "", fmt.Errorf("некорректное имя полки")
+	}
+	switch name {
+	case "api", "ui", "internal", "healthz", "cluster", "metrics":
+		return "", fmt.Errorf("зарезервированное имя полки")
 	}
 	return filepath.Join(s.root, name), nil
 }
@@ -71,7 +76,7 @@ func (s *Store) objectPath(polka, key string) (string, error) {
 		return "", err
 	}
 	key = strings.TrimPrefix(key, "/")
-	if key == "" || strings.Contains(key, "..") {
+	if key == "" || strings.HasSuffix(key, ".tmp") || strings.HasSuffix(key, ".kladovka-meta.json") || strings.Contains(key, "..") {
 		return "", fmt.Errorf("некорректный ключ объекта")
 	}
 	// Keep path separators as nested dirs.
@@ -155,6 +160,8 @@ func (s *Store) ListPolki() ([]string, error) {
 
 // PutObject writes object body to a shelf.
 func (s *Store) PutObject(polka, key string, body io.Reader, contentType string) (*ObjectMeta, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ok, err := s.PolkaExists(polka)
 	if err != nil {
 		return nil, err
@@ -170,13 +177,16 @@ func (s *Store) PutObject(polka, key string, body io.Reader, contentType string)
 		return nil, err
 	}
 
-	tmp := op + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	f, err := os.CreateTemp(filepath.Dir(op), ".kladovka-*.tmp")
 	if err != nil {
 		return nil, err
 	}
+	tmp := f.Name()
 	h := md5.New()
 	n, err := io.Copy(io.MultiWriter(f, h), body)
+	if err == nil {
+		err = f.Sync()
+	}
 	if cerr := f.Close(); cerr != nil && err == nil {
 		err = cerr
 	}
@@ -199,7 +209,9 @@ func (s *Store) PutObject(polka, key string, body io.Reader, contentType string)
 		ContentType:  contentType,
 		LastModified: time.Now().UTC(),
 	}
-	_ = s.writeSideMeta(op, meta)
+	if err := s.writeSideMeta(op, meta); err != nil {
+		return nil, err
+	}
 	return meta, nil
 }
 
@@ -208,7 +220,23 @@ func (s *Store) writeSideMeta(objectPath string, meta *ObjectMeta) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(objectPath+".kladovka-meta.json", b, 0o644)
+	f, err := os.CreateTemp(filepath.Dir(objectPath), ".kladovka-meta-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err = f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), objectPath+".kladovka-meta.json")
 }
 
 func (s *Store) readSideMeta(objectPath string) (*ObjectMeta, error) {
@@ -272,6 +300,8 @@ func (s *Store) HeadObject(polka, key string) (*ObjectMeta, error) {
 
 // DeleteObject removes an object.
 func (s *Store) DeleteObject(polka, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	op, err := s.objectPath(polka, key)
 	if err != nil {
 		return err
@@ -280,7 +310,16 @@ func (s *Store) DeleteObject(polka, key string) error {
 		return ErrObjectNotFound
 	}
 	_ = os.Remove(op + ".kladovka-meta.json")
-	return os.Remove(op)
+	if err := os.Remove(op); err != nil {
+		return err
+	}
+	pp, _ := s.polkaPath(polka)
+	for dir := filepath.Dir(op); dir != pp && dir != s.root && dir != "."; dir = filepath.Dir(dir) {
+		if err := os.Remove(dir); err != nil {
+			break
+		}
+	}
+	return nil
 }
 
 // ListObjects lists objects under a shelf with optional prefix (flat keys).
@@ -339,10 +378,10 @@ func (s *Store) ListObjects(polka, prefix string, maxKeys int, startAfter string
 		if startAfter != "" && m.Key <= startAfter {
 			continue
 		}
-		out = append(out, m)
-		if len(out) >= maxKeys {
+		if len(out) == maxKeys {
 			return out, true, nil
 		}
+		out = append(out, m)
 	}
 	return out, false, nil
 }
@@ -387,17 +426,20 @@ func (s *Store) StatsForPolka(polka string) (PolkaStats, error) {
 }
 
 // DiskUsage returns used and total bytes for the data root volume (best-effort).
-func (s *Store) DiskUsage() (used, total uint64, err error) {
-	var size int64
-	_ = filepath.WalkDir(s.root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		info, e := d.Info()
-		if e == nil {
-			size += info.Size()
-		}
-		return nil
-	})
-	return uint64(size), 0, nil
+func (s *Store) DiskUsage() (used, total uint64, err error) { return diskUsage(s.root) }
+
+// SetETag preserves multipart ETags on replicas.
+func (s *Store) SetETag(polka, key, etag string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	op, err := s.objectPath(polka, key)
+	if err != nil {
+		return err
+	}
+	meta, err := s.readSideMeta(op)
+	if err != nil {
+		return err
+	}
+	meta.ETag = etag
+	return s.writeSideMeta(op, meta)
 }

@@ -9,7 +9,6 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -48,7 +47,7 @@ func (r *Replicator) PrimaryURL(polka, key string) string {
 }
 
 // ReplicatePut sends object bytes to replica peers (not self).
-func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body []byte, contentType string) error {
+func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body io.ReadSeeker, contentType string, etag string) error {
 	nodes := r.Placement(polka, key)
 	self := r.Registry.SelfID()
 	var firstErr error
@@ -61,14 +60,21 @@ func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body [
 			continue
 		}
 		u := fmt.Sprintf("%s/internal/object/%s/%s", base, url.PathEscape(polka), escapeKey(key))
-		req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, bytes.NewReader(body))
+		if _, err := body.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, io.NopCloser(body))
 		if err != nil {
 			firstErr = err
 			continue
 		}
+		if etag != "" {
+			req.Header.Set("X-Kladovka-ETag", etag)
+		}
 		if contentType != "" {
 			req.Header.Set("Content-Type", contentType)
 		}
+		r.Registry.Authorize(req)
 		resp, err := r.Registry.Client().Do(req)
 		if err != nil {
 			firstErr = err
@@ -84,7 +90,8 @@ func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body [
 }
 
 // ReplicateDelete best-effort deletes object on peers.
-func (r *Replicator) ReplicateDelete(ctx context.Context, polka, key string) {
+func (r *Replicator) ReplicateDelete(ctx context.Context, polka, key string) error {
+	var firstErr error
 	nodes := r.Placement(polka, key)
 	self := r.Registry.SelfID()
 	for _, nid := range nodes {
@@ -98,15 +105,22 @@ func (r *Replicator) ReplicateDelete(ctx context.Context, polka, key string) {
 		u := fmt.Sprintf("%s/internal/object/%s/%s", base, url.PathEscape(polka), escapeKey(key))
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u, nil)
 		if err != nil {
+			firstErr = err
 			continue
 		}
+		r.Registry.Authorize(req)
 		resp, err := r.Registry.Client().Do(req)
 		if err != nil {
+			firstErr = err
 			continue
 		}
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			firstErr = fmt.Errorf("replica delete: %s", resp.Status)
+		}
 	}
+	return firstErr
 }
 
 func escapeKey(key string) string {

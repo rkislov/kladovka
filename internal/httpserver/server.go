@@ -10,7 +10,9 @@
 package httpserver
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,6 +23,10 @@ import (
 
 // ListenAndServe starts plain HTTP or TLS depending on config.
 func ListenAndServe(cfg *config.Config, handler http.Handler) error {
+	return ListenAndServeContext(context.Background(), cfg, handler)
+}
+
+func ListenAndServeContext(ctx context.Context, cfg *config.Config, handler http.Handler) error {
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           handler,
@@ -31,9 +37,31 @@ func ListenAndServe(cfg *config.Config, handler http.Handler) error {
 		MaxHeaderBytes:    1 << 20,
 	}
 
+	done := make(chan struct{})
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		select {
+		case <-ctx.Done():
+			shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := srv.Shutdown(shutdown); err != nil {
+				srv.Close()
+			}
+		case <-done:
+		}
+	}()
+	defer close(done)
+	finish := func(err error) error {
+		if errors.Is(err, http.ErrServerClosed) {
+			<-drained
+			return nil
+		}
+		return err
+	}
 	if !cfg.TLSEnabled() {
 		log.Printf("kladovka: listening HTTP on %s", cfg.ListenAddr)
-		return srv.ListenAndServe()
+		return finish(srv.ListenAndServe())
 	}
 
 	minVer := tls.VersionTLS12
@@ -49,7 +77,7 @@ func ListenAndServe(cfg *config.Config, handler http.Handler) error {
 		},
 	}
 	log.Printf("kladovka: listening HTTPS on %s (cert=%s)", cfg.ListenAddr, cfg.TLSCertFile)
-	return srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
+	return finish(srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile))
 }
 
 // ValidateTLSFiles checks that cert/key pair is loadable when TLS is enabled.

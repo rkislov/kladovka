@@ -10,6 +10,7 @@ package s3api
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -66,16 +67,16 @@ type bucketEntry struct {
 }
 
 type listBucketResult struct {
-	XMLName        xml.Name       `xml:"ListBucketResult"`
-	Xmlns          string         `xml:"xmlns,attr"`
-	Name           string         `xml:"Name"`
-	Prefix         string         `xml:"Prefix"`
-	KeyCount       int            `xml:"KeyCount"`
-	MaxKeys        int            `xml:"MaxKeys"`
-	IsTruncated    bool           `xml:"IsTruncated"`
-	Contents       []objectEntry  `xml:"Contents"`
-	NextContToken  string         `xml:"NextContinuationToken,omitempty"`
-	ContToken      string         `xml:"ContinuationToken,omitempty"`
+	XMLName       xml.Name      `xml:"ListBucketResult"`
+	Xmlns         string        `xml:"xmlns,attr"`
+	Name          string        `xml:"Name"`
+	Prefix        string        `xml:"Prefix"`
+	KeyCount      int           `xml:"KeyCount"`
+	MaxKeys       int           `xml:"MaxKeys"`
+	IsTruncated   bool          `xml:"IsTruncated"`
+	Contents      []objectEntry `xml:"Contents"`
+	NextContToken string        `xml:"NextContinuationToken,omitempty"`
+	ContToken     string        `xml:"ContinuationToken,omitempty"`
 }
 
 type objectEntry struct {
@@ -131,6 +132,9 @@ func listObjectsXML(polka, prefix, cont string, maxKeys int, objs []storage.Obje
 }
 
 func mapStorageErr(err error) (int, string, string) {
+	if errors.Is(err, errClusterChange) {
+		return http.StatusServiceUnavailable, "ServiceUnavailable", err.Error()
+	}
 	switch err {
 	case storage.ErrPolkaNotFound:
 		return http.StatusNotFound, "NoSuchBucket", "The specified shelf (полка) does not exist"

@@ -10,7 +10,9 @@ package cluster
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"sort"
@@ -35,6 +37,7 @@ type Registry struct {
 	nodes    map[string]*NodeState
 	client   *http.Client
 	interval time.Duration
+	token    string
 }
 
 // NewRegistry builds a registry from self and peer base URLs.
@@ -46,7 +49,7 @@ func NewRegistry(selfID, selfURL string, peerURLs []string, verifyTLS bool, inte
 		selfID:   selfID,
 		selfURL:  selfURL,
 		nodes:    map[string]*NodeState{},
-		client:   &http.Client{Timeout: 3 * time.Second, Transport: tr},
+		client:   &http.Client{Timeout: 2 * time.Minute, Transport: tr},
 		interval: interval,
 	}
 	r.nodes[selfID] = &NodeState{NodeID: selfID, URL: selfURL, Healthy: true}
@@ -153,13 +156,17 @@ func (r *Registry) pollOnce(ctx context.Context) {
 	r.mu.RUnlock()
 
 	for _, n := range peers {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, n.URL+"/internal/health", nil)
+		healthCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		req, err := http.NewRequestWithContext(healthCtx, http.MethodGet, n.URL+"/internal/health", nil)
 		if err != nil {
+			cancel()
 			r.mark(n.NodeID, false, 0, err.Error())
 			continue
 		}
+		r.Authorize(req)
 		resp, err := r.client.Do(req)
 		if err != nil {
+			cancel()
 			r.mark(n.NodeID, false, 0, err.Error())
 			continue
 		}
@@ -168,6 +175,7 @@ func (r *Registry) pollOnce(ctx context.Context) {
 		}
 		_ = json.NewDecoder(resp.Body).Decode(&body)
 		_ = resp.Body.Close()
+		cancel()
 		if resp.StatusCode != http.StatusOK {
 			r.mark(n.NodeID, false, 0, "health "+resp.Status)
 			continue
@@ -188,3 +196,14 @@ func (r *Registry) mark(id string, healthy bool, used uint64, lastErr string) {
 
 // Client returns the shared HTTP client for inter-node calls.
 func (r *Registry) Client() *http.Client { return r.client }
+
+// SetToken configures the shared credential for inter-node requests before serving.
+func (r *Registry) SetToken(token string)       { r.token = token }
+func (r *Registry) Authorize(req *http.Request) { req.Header.Set("Authorization", "Bearer "+r.token) }
+func SharedToken(configured, secret string) string {
+	if configured != "" {
+		return configured
+	}
+	h := sha256.Sum256([]byte("kladovka-internal-v1:" + secret))
+	return hex.EncodeToString(h[:])
+}

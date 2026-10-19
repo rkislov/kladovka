@@ -11,8 +11,6 @@
 package s3api
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -44,18 +42,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/internal/health", s.handleInternalHealth)
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
+	mux.HandleFunc("/internal/polki/", s.handleInternalPolka)
 	mux.HandleFunc("/cluster", s.handleCluster)
 	mux.Handle("/metrics", metrics.Handler(s.refreshMetrics))
 	mux.Handle("/internal/prometheus-sd", metrics.SDHandler(s.Reg, "/metrics"))
 	mux.HandleFunc("/api/polki", s.handleAPIPolki)
 	mux.HandleFunc("/api/polki/", s.handleAPIPolki)
 	mux.HandleFunc("/api/stats", s.handleAPIStats)
+	mux.HandleFunc("/api/object/", s.handleAPIObject)
 	mux.Handle("/ui/", webui.Handler())
 	mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/", http.StatusFound)
 	})
 	mux.HandleFunc("/", s.handleS3)
-	return metrics.Middleware(mux)
+	return metrics.Middleware(s.protect(mux))
 }
 
 func (s *Server) refreshMetrics() {
@@ -100,7 +100,11 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "нужно поле name", http.StatusBadRequest)
 			return
 		}
-		if err := s.Store.CreatePolka(body.Name); err != nil {
+		if err := s.createPolka(r.Context(), body.Name); err != nil {
+			if errors.Is(err, errClusterChange) {
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				return
+			}
 			if errors.Is(err, storage.ErrPolkaExists) {
 				http.Error(w, err.Error(), http.StatusConflict)
 				return
@@ -116,6 +120,15 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAPIPolkaDetail(w http.ResponseWriter, r *http.Request, name string) {
+	if r.Method == http.MethodDelete {
+		if err := s.deletePolka(r.Context(), name); err != nil {
+			status, _, _ := mapStorageErr(err)
+			http.Error(w, err.Error(), status)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -129,14 +142,22 @@ func (s *Server) handleAPIPolkaDetail(w http.ResponseWriter, r *http.Request, na
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	objs, _, err := s.Store.ListObjects(name, "", 100, "")
+	after := r.URL.Query().Get("start-after")
+	objs, truncated, err := s.Store.ListObjects(name, "", 100, after)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"polka":   st,
-		"objects": objs,
+		"polka":     st,
+		"objects":   objs,
+		"truncated": truncated,
+		"next_start_after": func() string {
+			if truncated && len(objs) > 0 {
+				return objs[len(objs)-1].Key
+			}
+			return ""
+		}(),
 	})
 }
 
@@ -237,19 +258,31 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPut:
 		ct := r.Header.Get("Content-Type")
-		body, err := io.ReadAll(io.LimitReader(r.Body, limitBytes(s.Cfg)))
+		body, _, err := s.spoolBody(r, false)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			status := http.StatusBadRequest
+			if errors.Is(err, errTooLarge) {
+				status = http.StatusRequestEntityTooLarge
+			}
+			http.Error(w, err.Error(), status)
 			return
 		}
+		defer removeSpool(body)
 		exists, _ := s.Store.PolkaExists(polka)
 		if !exists {
 			_ = s.Store.CreatePolka(polka)
 		}
-		meta, err := s.Store.PutObject(polka, key, bytes.NewReader(body), ct)
+		meta, err := s.Store.PutObject(polka, key, body, ct)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		if etag := r.Header.Get("X-Kladovka-ETag"); etag != "" {
+			if err := s.Store.SetETag(polka, key, etag); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			meta.ETag = etag
 		}
 		w.Header().Set("ETag", meta.ETag)
 		w.WriteHeader(http.StatusOK)
@@ -272,9 +305,13 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		_, _ = io.Copy(w, rc)
+		http.ServeContent(w, r, key, meta.LastModified, rc.(io.ReadSeeker))
 	case http.MethodDelete:
-		_ = s.Store.DeleteObject(polka, key)
+		if err := s.Store.DeleteObject(polka, key); err != nil && !errors.Is(err, storage.ErrObjectNotFound) {
+			status, _, _ := mapStorageErr(err)
+			http.Error(w, err.Error(), status)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -284,6 +321,10 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {
 	_, err := s.Auth.AuthenticateRequest(r, r.Header.Get("X-Amz-Content-Sha256"))
 	if err == nil {
+		if strings.HasPrefix(r.Header.Get("X-Amz-Content-Sha256"), "STREAMING-") {
+			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "AWS streaming signatures are not supported; disable optional request checksums", r.URL.Path)
+			return false
+		}
 		return true
 	}
 	if errors.Is(err, auth.ErrMissingAuth) {
@@ -318,6 +359,16 @@ func (s *Server) handleS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Header.Get("X-Amz-Copy-Source") != "" {
+		writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "CopyObject is not supported", r.URL.Path)
+		return
+	}
+	for _, q := range []string{"acl", "versioning", "versionId", "versions", "lifecycle", "policy", "cors", "tagging", "delete", "location", "notification", "restore"} {
+		if r.URL.Query().Has(q) {
+			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "unsupported S3 feature: "+q, r.URL.Path)
+			return
+		}
+	}
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	if path == "" {
 		s.handleListPolki(w, r)
@@ -325,6 +376,10 @@ func (s *Server) handleS3(w http.ResponseWriter, r *http.Request) {
 	}
 	polka, key, hasKey := splitPolkaKey(path)
 	if !hasKey {
+		if r.URL.Query().Has("uploads") {
+			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "ListMultipartUploads is not supported", r.URL.Path)
+			return
+		}
 		s.handlePolka(w, r, polka)
 		return
 	}
@@ -350,7 +405,7 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 	q := r.URL.Query()
 	switch r.Method {
 	case http.MethodPut:
-		if err := s.Store.CreatePolka(polka); err != nil {
+		if err := s.createPolka(r.Context(), polka); err != nil {
 			st, code, msg := mapStorageErr(err)
 			if errors.Is(err, storage.ErrPolkaExists) {
 				w.WriteHeader(http.StatusOK)
@@ -369,7 +424,7 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 		}
 		w.WriteHeader(http.StatusOK)
 	case http.MethodDelete:
-		if err := s.Store.DeletePolka(polka); err != nil {
+		if err := s.deletePolka(r.Context(), polka); err != nil {
 			st, code, msg := mapStorageErr(err)
 			writeS3Error(w, st, code, msg, "/"+polka)
 			return
@@ -402,6 +457,10 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 }
 
 func (s *Server) handleObject(w http.ResponseWriter, r *http.Request, polka, key string) {
+	if s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId")) {
+		s.forwardToPrimary(w, r, polka, key)
+		return
+	}
 	if s.handleObjectMultipart(w, r, polka, key) {
 		return
 	}
@@ -425,37 +484,40 @@ func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key st
 		s.forwardToPrimary(w, r, polka, key)
 		return
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, limitBytes(s.Cfg)))
+	body, size, err := s.spoolBody(r, true)
 	if err != nil {
-		writeS3Error(w, http.StatusBadRequest, "InvalidRequest", err.Error(), r.URL.Path)
+		status, code := http.StatusBadRequest, "InvalidRequest"
+		if errors.Is(err, errTooLarge) {
+			status, code = http.StatusRequestEntityTooLarge, "EntityTooLarge"
+		}
+		writeS3Error(w, status, code, err.Error(), r.URL.Path)
 		return
 	}
-	if s.Cfg.MaxObjectSize > 0 && int64(len(body)) > s.Cfg.MaxObjectSize {
-		writeS3Error(w, http.StatusRequestEntityTooLarge, "EntityTooLarge", "object too large", r.URL.Path)
-		return
-	}
+	defer removeSpool(body)
 	exists, _ := s.Store.PolkaExists(polka)
 	if !exists {
 		writeS3Error(w, http.StatusNotFound, "NoSuchBucket", "The specified shelf (полка) does not exist", "/"+polka)
 		return
 	}
 	ct := r.Header.Get("Content-Type")
-	meta, err := s.Store.PutObject(polka, key, bytes.NewReader(body), ct)
+	meta, err := s.Store.PutObject(polka, key, body, ct)
 	if err != nil {
 		st, code, msg := mapStorageErr(err)
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
 	}
 	if s.Cfg.ReplicationFactor > 1 {
-		if err := s.Rep.ReplicatePut(r.Context(), polka, key, body, ct); err != nil {
+		if err := s.Rep.ReplicatePut(r.Context(), polka, key, body, ct, meta.ETag); err != nil {
 			metrics.RecordReplicationFailed()
+			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "object stored locally but replication incomplete; retry the same PUT", r.URL.Path)
+			return
 		} else {
 			metrics.RecordReplicationOK()
 			metrics.RecordReplicationPublished(s.Cfg.ReplicationFactor - 1)
 		}
 	}
 	metrics.RecordS3Operation("PutObject", polka)
-	metrics.RecordBytesUploaded(polka, int64(len(body)))
+	metrics.RecordBytesUploaded(polka, size)
 	w.Header().Set("ETag", meta.ETag)
 	w.WriteHeader(http.StatusOK)
 }
@@ -466,12 +528,13 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 		defer rc.Close()
 		w.Header().Set("ETag", meta.ETag)
 		w.Header().Set("Content-Type", meta.ContentType)
-		w.Header().Set("Content-Length", strconv.FormatInt(meta.Size, 10))
-		w.Header().Set("Last-Modified", meta.LastModified.UTC().Format(http.TimeFormat))
 		w.Header().Set("x-amz-kladovka-polka", polka)
-		n, _ := io.Copy(w, rc)
-		metrics.RecordS3Operation("GetObject", polka)
-		metrics.RecordBytesDownloaded(polka, n)
+		counted := &responseCounter{ResponseWriter: w, status: http.StatusOK}
+		http.ServeContent(counted, r, key, meta.LastModified, rc.(io.ReadSeeker))
+		if counted.status == http.StatusOK || counted.status == http.StatusPartialContent {
+			metrics.RecordS3Operation("GetObject", polka)
+			metrics.RecordBytesDownloaded(polka, counted.bytes)
+		}
 		return
 	}
 	if !errors.Is(err, storage.ErrObjectNotFound) {
@@ -491,6 +554,9 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 func (s *Server) headObject(w http.ResponseWriter, r *http.Request, polka, key string) {
 	meta, err := s.Store.HeadObject(polka, key)
 	if err != nil {
+		if s.Cfg.ReplicationFactor > 1 && s.tryFetchFromPeers(w, r, polka, key) {
+			return
+		}
 		st, code, msg := mapStorageErr(err)
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
@@ -515,7 +581,11 @@ func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, polka, key
 		return
 	}
 	if s.Cfg.ReplicationFactor > 1 {
-		s.Rep.ReplicateDelete(r.Context(), polka, key)
+		if err := s.Rep.ReplicateDelete(r.Context(), polka, key); err != nil {
+			metrics.RecordReplicationFailed()
+			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "local delete completed; replica delete incomplete, retry DELETE", r.URL.Path)
+			return
+		}
 	}
 	metrics.RecordS3Operation("DeleteObject", polka)
 	w.WriteHeader(http.StatusNoContent)
@@ -528,11 +598,16 @@ func (s *Server) forwardToPrimary(w http.ResponseWriter, r *http.Request, polka,
 		return
 	}
 	u := strings.TrimRight(base, "/") + "/" + url.PathEscape(polka) + "/" + escapeKeyPath(key)
+	if strings.HasPrefix(r.URL.Path, "/api/object/") {
+		u = strings.TrimRight(base, "/") + r.URL.EscapedPath()
+	}
 	if r.URL.RawQuery != "" {
 		u += "?" + r.URL.RawQuery
 	}
-	body, _ := io.ReadAll(io.LimitReader(r.Body, limitBytes(s.Cfg)))
-	req, err := http.NewRequestWithContext(r.Context(), r.Method, u, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, u, r.Body)
+	if err == nil {
+		req.ContentLength = r.ContentLength
+	}
 	if err != nil {
 		writeS3Error(w, http.StatusBadGateway, "InternalError", err.Error(), r.URL.Path)
 		return
@@ -542,9 +617,10 @@ func (s *Server) forwardToPrimary(w http.ResponseWriter, r *http.Request, polka,
 			req.Header.Add(k, v)
 		}
 	}
+	req.Host = r.Host
 	resp, err := s.Reg.Client().Do(req)
 	if err != nil {
-		writeS3Error(w, http.StatusBadGateway, "InternalError", err.Error(), r.URL.Path)
+		writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error(), r.URL.Path)
 		return
 	}
 	defer resp.Body.Close()
@@ -567,15 +643,21 @@ func (s *Server) tryFetchFromPeers(w http.ResponseWriter, r *http.Request, polka
 			continue
 		}
 		u := base + "/internal/object/" + url.PathEscape(polka) + "/" + escapeKeyPath(key)
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, nil)
+		req, err := http.NewRequestWithContext(r.Context(), r.Method, u, nil)
 		if err != nil {
 			continue
 		}
+		for _, name := range []string{"Range", "If-Range", "If-None-Match", "If-Modified-Since"} {
+			if v := r.Header.Get(name); v != "" {
+				req.Header.Set(name, v)
+			}
+		}
+		s.Reg.Authorize(req)
 		resp, err := s.Reg.Client().Do(req)
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusNotModified {
 			_ = resp.Body.Close()
 			continue
 		}
@@ -584,8 +666,14 @@ func (s *Server) tryFetchFromPeers(w http.ResponseWriter, r *http.Request, polka
 				w.Header().Add(k, v)
 			}
 		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.Copy(w, resp.Body)
+		w.WriteHeader(resp.StatusCode)
+		n, _ := io.Copy(w, resp.Body)
+		if r.Method == http.MethodGet {
+			metrics.RecordS3Operation("GetObject", polka)
+			metrics.RecordBytesDownloaded(polka, n)
+		} else if r.Method == http.MethodHead {
+			metrics.RecordS3Operation("HeadObject", polka)
+		}
 		_ = resp.Body.Close()
 		return true
 	}
@@ -614,9 +702,11 @@ func escapeKeyPath(key string) string {
 	return strings.Join(parts, "/")
 }
 
-func limitBytes(cfg *config.Config) int64 {
-	if cfg.MaxObjectSize > 0 {
-		return cfg.MaxObjectSize + 1
+func (s *Server) handleAPIObject(w http.ResponseWriter, r *http.Request) {
+	polka, key, ok := splitPolkaKey(strings.TrimPrefix(r.URL.Path, "/api/object/"))
+	if !ok {
+		http.Error(w, "missing object key", http.StatusBadRequest)
+		return
 	}
-	return 32 << 30 // 32 GiB soft cap for ReadAll paths
+	s.handleObject(w, r, polka, key)
 }

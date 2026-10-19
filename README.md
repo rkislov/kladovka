@@ -15,16 +15,25 @@
 
 ---
 
+## Документация
+
+- [Инструкция администратора](docs/ADMIN.md): установка, безопасность, HTTPS, кластер, мониторинг и резервные копии.
+- [Инструкция пользователя](docs/USER.md): панель, файлы, AWS CLI, multipart и ошибки.
+- [Состояние проекта](docs/STATUS.md): реализованные функции, проверки и оставшиеся ограничения.
+
+Панель, JSON API и метрики требуют HTTP Basic (ACCESS_KEY / SECRET_KEY), внутренний API — Bearer-токен. S3 использует SigV4. Перед сетевой эксплуатацией смените стандартные ключи и настройте HTTPS. Кластер пока требует фиксированного состава и не имеет автоматического восстановления потерянных копий.
+
 ## Возможности
 
 - Path-style S3 API: ListBuckets / CreateBucket / PutObject / GetObject / HeadObject / DeleteObject / ListObjectsV2
 - Multipart Upload (Create / UploadPart / Complete / Abort / ListParts)
 - Полка = каталог на диске под `DATA_ROOT`
 - AWS Signature Version 4 (заголовок `Authorization` и базовый presigned URL)
-- Кластер: consistent hashing по `полка/ключ`, primary + реплики, фоновый health пиров
+- Кластер: хеширование ключа по составу узлов по `полка/ключ`, primary + реплики, фоновый health пиров
 - Межнодовый internal API (`/internal/health`, `/internal/object/...`)
 - Встроенный веб-UI: `/ui/`
-- Простой JSON API полок: `/api/polki`
+- JSON API полок и статистики: `/api/polki`, `/api/stats`; операции с файлами: `/api/object/<полка>/<ключ>`
+- Панель: поиск полок, загрузка/скачивание/удаление файлов, страницы по 100 объектов
 - **Метрики Prometheus**: `GET /metrics` (HTTP, S3, диск, кластер, репликация)
 - **Prometheus HTTP SD**: `GET /internal/prometheus-sd`
 - HTTPS: сертификат и ключ через переменные окружения (`TLS_CERT_FILE`, `TLS_KEY_FILE`)
@@ -55,7 +64,7 @@ make release VERSION=0.2.0
 git clone https://github.com/rkislov/kladovka.git
 cd kladovka
 make build
-./bin/kladovka
+LISTEN_ADDR=127.0.0.1:8000 ./bin/kladovka
 ```
 
 По умолчанию:
@@ -66,11 +75,13 @@ make build
 | Данные   | `./data` |
 | Access Key / Secret | `kladovka` / `kladovka-secret` |
 
-Проверка:
+Проверка (для стандартных тестовых ключей):
 
 ```bash
+export ACCESS_KEY=kladovka
+export SECRET_KEY=kladovka-secret
 curl -s http://127.0.0.1:8000/healthz
-curl -s http://127.0.0.1:8000/cluster
+curl -s --user "$ACCESS_KEY:$SECRET_KEY" http://127.0.0.1:8000/cluster
 ```
 
 Пример с AWS CLI (path-style):
@@ -79,6 +90,8 @@ curl -s http://127.0.0.1:8000/cluster
 export AWS_ACCESS_KEY_ID=kladovka
 export AWS_SECRET_ACCESS_KEY=kladovka-secret
 export AWS_DEFAULT_REGION=us-east-1
+export AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 
 aws --endpoint-url http://127.0.0.1:8000 s3 mb s3://documents
 aws --endpoint-url http://127.0.0.1:8000 s3 cp ./README.md s3://documents/readme.md
@@ -103,6 +116,7 @@ aws --endpoint-url http://127.0.0.1:8000 s3 ls s3://documents
 | `PEER_NODES` | — | URL других нод через запятую |
 | `REPLICATION_FACTOR` | `1` | Число копий объекта |
 | `CLUSTER_VERIFY_TLS` | `true` | Проверять TLS при опросе пиров |
+| `CLUSTER_TOKEN` | выводится из SECRET_KEY | Общий секрет внутреннего API; рекомендуется задать явно |
 | `HEALTH_INTERVAL_SEC` | `10` | Интервал health-check |
 | `MAX_OBJECT_SIZE` | `0` | Лимит размера объекта (0 = без лимита) |
 | `TLS_CERT_FILE` | — | Путь к сертификату PEM |
@@ -205,7 +219,7 @@ make test
 ./bin/kladovka -version
 ```
 
-Требуется Go 1.22+.
+Требуется Go 1.25+.
 
 ---
 
@@ -216,7 +230,7 @@ make test
 - Скриншоты: [`docs/screenshots/`](./docs/screenshots/)
 - Wallpaper pack (1080p → 5K Retina, MacBook Retina): [`docs/wallpapers/`](./docs/wallpapers/)
 
-![UI desktop](./docs/screenshots/ui-desktop.png)
+![UI: files and statistics](./docs/screenshots/ui-current.png)
 
 ---
 

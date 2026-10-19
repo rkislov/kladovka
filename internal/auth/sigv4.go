@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -59,6 +60,9 @@ func (a *Authenticator) AuthenticateRequest(r *http.Request, payloadHash string)
 		return "", ErrInvalidAuth
 	}
 	accessKey, dateStamp, region, service := credParts[0], credParts[1], credParts[2], credParts[3]
+	if region != a.Region || service != "s3" || credParts[4] != "aws4_request" {
+		return "", ErrInvalidAuth
+	}
 	secret, ok := a.Creds[accessKey]
 	if !ok {
 		return "", ErrUnknownKey
@@ -68,6 +72,13 @@ func (a *Authenticator) AuthenticateRequest(r *http.Request, payloadHash string)
 		amzDate = r.Header.Get("Date")
 	}
 	if amzDate == "" {
+		return "", ErrInvalidAuth
+	}
+	t, err := time.Parse("20060102T150405Z", amzDate)
+	if err != nil || dateStamp != t.Format("20060102") || time.Since(t) > 15*time.Minute || time.Until(t) > 15*time.Minute {
+		return "", ErrExpired
+	}
+	if !strings.Contains(";"+signedHeaders+";", ";host;") {
 		return "", ErrInvalidAuth
 	}
 	if payloadHash == "" {
@@ -118,20 +129,22 @@ func (a *Authenticator) verifyPresigned(r *http.Request) (Identity, error) {
 		return "", ErrInvalidAuth
 	}
 	accessKey, dateStamp, region, service := credParts[0], credParts[1], credParts[2], credParts[3]
+	if region != a.Region || service != "s3" || credParts[4] != "aws4_request" {
+		return "", ErrInvalidAuth
+	}
 	secret, ok := a.Creds[accessKey]
 	if !ok {
 		return "", ErrUnknownKey
 	}
-	if expires != "" {
-		t, err := time.Parse("20060102T150405Z", amzDate)
-		if err == nil {
-			var sec int
-			fmt.Sscanf(expires, "%d", &sec)
-			if sec > 0 && time.Now().UTC().After(t.Add(time.Duration(sec)*time.Second)) {
-				return "", ErrExpired
-			}
-		}
+	t, err := time.Parse("20060102T150405Z", amzDate)
+	sec, parseErr := strconv.Atoi(expires)
+	if err != nil || parseErr != nil || sec < 1 || sec > 604800 || dateStamp != t.Format("20060102") || signedHeaders == "" || signature == "" || !strings.Contains(";"+signedHeaders+";", ";host;") {
+		return "", ErrInvalidAuth
 	}
+	if time.Until(t) > 15*time.Minute || time.Now().After(t.Add(time.Duration(sec)*time.Second)) {
+		return "", ErrExpired
+	}
+
 	// Rebuild query without signature for canonical request.
 	vals := url.Values{}
 	for k, vv := range q {
@@ -200,20 +213,11 @@ func buildCanonicalRequest(method, path, rawQuery string, headers map[string]str
 		canPath = "/" + canPath
 	}
 
-	var q string
-	if rawQuery == "" {
-		q = ""
-	} else if strings.Contains(rawQuery, "=") || strings.Contains(rawQuery, "&") {
-		// Already encoded or raw — normalize via url.ParseQuery when possible.
-		vals, err := url.ParseQuery(rawQuery)
-		if err == nil {
-			q = encodeQuery(vals)
-		} else {
-			q = rawQuery
-		}
-	} else {
-		q = rawQuery
+	vals, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return ""
 	}
+	q := encodeQuery(vals)
 
 	names := strings.Split(signedHeaders, ";")
 	sort.Strings(names)

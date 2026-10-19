@@ -1,20 +1,18 @@
-# Пример scrape-конфига для Кладовки.
-# Copyright 2026 Роман Сергеевич Кислов — Apache-2.0
-
+# Copy this file and replace endpoints and credential-file paths for your installation.
 global:
   scrape_interval: 15s
-
 scrape_configs:
   - job_name: kladovka
     metrics_path: /metrics
+    basic_auth:
+      username: kladovka
+      password_file: /etc/prometheus/kladovka-secret
     http_sd_configs:
       - url: http://127.0.0.1:8000/internal/prometheus-sd
         refresh_interval: 30s
+        authorization:
+          type: Bearer
+          credentials_file: /etc/prometheus/kladovka-cluster-token
     relabel_configs:
       - source_labels: [metrics_scheme]
         target_label: __scheme__
-      - source_labels: [__meta_url]
-        regex: .+
-        action: keep
-    # static_configs:
-    #   - targets: ["127.0.0.1:8000"]
