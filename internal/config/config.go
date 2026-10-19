@@ -29,9 +29,12 @@ type Config struct {
 	TLSMinVersion string // "1.2" or "1.3"
 
 	// S3 credentials (fallback / bootstrap)
-	ClusterToken string
-	AccessKey    string
-	SecretKey    string
+	ClusterToken     string
+	AccessKey        string
+	SecretKey        string
+	AccessPolicyFile string
+	AdminUser        string
+	AdminPassword    string
 
 	// Cluster
 	NodeID            string
@@ -92,6 +95,9 @@ func Load() (*Config, error) {
 		ClusterToken:         os.Getenv("CLUSTER_TOKEN"),
 		AccessKey:            getenv("ACCESS_KEY", "kladovka"),
 		SecretKey:            getenv("SECRET_KEY", "kladovka-secret"),
+		AccessPolicyFile:     os.Getenv("ACCESS_POLICY_FILE"),
+		AdminUser:            os.Getenv("ADMIN_USER"),
+		AdminPassword:        os.Getenv("ADMIN_PASSWORD"),
 		NodeID:               getenv("NODE_ID", "node-1"),
 		NodeURL:              getenv("NODE_URL", "http://localhost:8000"),
 		ReplicationFactor:    getenvInt("REPLICATION_FACTOR", 1),
@@ -116,6 +122,12 @@ func Load() (*Config, error) {
 	}
 	if cfg.ReplicationFactor < 1 {
 		return nil, fmt.Errorf("REPLICATION_FACTOR must be positive")
+	}
+	if (cfg.AdminUser == "") != (cfg.AdminPassword == "") {
+		return nil, fmt.Errorf("ADMIN_USER and ADMIN_PASSWORD must be set together")
+	}
+	if cfg.AccessPolicyFile != "" && (cfg.AdminUser == "" || len(cfg.AdminPassword) < 16 || cfg.ClusterToken == "") {
+		return nil, fmt.Errorf("ACCESS_POLICY_FILE requires ADMIN_USER, ADMIN_PASSWORD (at least 16 bytes) and CLUSTER_TOKEN")
 	}
 	if cfg.TLSCertFile != "" && cfg.TLSKeyFile == "" {
 		return nil, fmt.Errorf("TLS_KEY_FILE required when TLS_CERT_FILE is set")

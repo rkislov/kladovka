@@ -14,7 +14,9 @@ jobs:
       - run: go vet ./...
       - run: make build
       - name: AWS CLI and backup/restore integration
-        run: python3 scripts/smoke.py --binary ./bin/kladovka
+        run: |
+          python3 scripts/smoke.py --binary ./bin/kladovka
+          python3 scripts/smoke.py --binary ./bin/kladovka --access-policy
   ui:
     runs-on: ubuntu-latest
     steps:

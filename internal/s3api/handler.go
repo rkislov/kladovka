@@ -89,7 +89,7 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		polki := make([]storage.PolkaStats, 0, len(names))
-		for _, n := range names {
+		for _, n := range visibleShelves(r, names) {
 			st, err := s.Store.StatsForPolka(n)
 			if err != nil {
 				st = storage.PolkaStats{Name: n}
@@ -101,7 +101,12 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+		payload, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4096))
+		if err != nil || verifyPayload(r, payload) != nil {
+			http.Error(w, "invalid or oversized request body", http.StatusBadRequest)
+			return
+		}
+		if err := json.NewDecoder(strings.NewReader(string(payload))).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
 			http.Error(w, "нужно поле name", http.StatusBadRequest)
 			return
 		}
@@ -321,8 +326,13 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {
-	_, err := s.Auth.AuthenticateRequest(r, r.Header.Get("X-Amz-Content-Sha256"))
+	principal, err := s.authenticateSigned(r)
 	if err == nil {
+		if !allowedRequest(principal, r) {
+			writeS3Error(w, http.StatusForbidden, "AccessDenied", "access denied", r.URL.Path)
+			return false
+		}
+		setPrincipal(r, principal)
 		if strings.HasPrefix(r.Header.Get("X-Amz-Content-Sha256"), "STREAMING-") {
 			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "AWS streaming signatures are not supported; disable optional request checksums", r.URL.Path)
 			return false
@@ -400,7 +410,7 @@ func (s *Server) handleListPolki(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metrics.RecordS3Operation("ListBuckets", "_")
-	writeXML(w, http.StatusOK, listBucketsXML(names))
+	writeXML(w, http.StatusOK, listBucketsXML(visibleShelves(r, names)))
 }
 
 func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka string) {
