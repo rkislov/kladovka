@@ -1,0 +1,12 @@
+{
+  "name": "kladovka-ui",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i web/styles.css -o internal/webui/static/app.css --minify",
+    "watch:css": "tailwindcss -i web/styles.css -o internal/webui/static/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.1.18",
+    "tailwindcss": "4.1.18"
+  }
+}

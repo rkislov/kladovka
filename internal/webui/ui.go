@@ -14,7 +14,7 @@ import (
 	"net/http"
 )
 
-//go:embed static/*
+//go:embed static/*.html static/*.css static/*.js
 var staticFS embed.FS
 
 // Handler serves the embedded admin UI under /ui/.
