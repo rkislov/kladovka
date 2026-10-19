@@ -30,9 +30,10 @@ var (
 
 // MultipartPart describes one uploaded part.
 type MultipartPart struct {
-	PartNumber int    `json:"part_number"`
-	ETag       string `json:"etag"`
-	Size       int64  `json:"size"`
+	PartNumber   int       `json:"part_number"`
+	ETag         string    `json:"etag"`
+	Size         int64     `json:"size"`
+	LastModified time.Time `json:"last_modified"`
 }
 
 type multipartMeta struct {
@@ -59,6 +60,9 @@ func (s *Store) CreateMultipartUpload(polka, key, contentType string) (string, e
 	}
 	if !ok {
 		return "", ErrPolkaNotFound
+	}
+	if _, err := s.objectPath(polka, key); err != nil {
+		return "", err
 	}
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -87,6 +91,12 @@ func (s *Store) CreateMultipartUpload(polka, key, contentType string) (string, e
 }
 
 func (s *Store) loadMultipart(uploadID string) (*multipartMeta, error) {
+	if len(uploadID) != 32 {
+		return nil, ErrNoSuchUpload
+	}
+	if _, err := hex.DecodeString(uploadID); err != nil {
+		return nil, ErrNoSuchUpload
+	}
 	b, err := os.ReadFile(filepath.Join(s.multipartDir(uploadID), "meta.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNoSuchUpload
@@ -103,6 +113,8 @@ func (s *Store) loadMultipart(uploadID string) (*multipartMeta, error) {
 
 // UploadPart stores one part of a multipart upload.
 func (s *Store) UploadPart(uploadID string, partNumber int, body io.Reader) (*MultipartPart, error) {
+	s.multipartMu.Lock()
+	defer s.multipartMu.Unlock()
 	if partNumber < 1 || partNumber > 10000 {
 		return nil, fmt.Errorf("некорректный номер части")
 	}
@@ -118,7 +130,12 @@ func (s *Store) UploadPart(uploadID string, partNumber int, body io.Reader) (*Mu
 	}
 	h := md5.New()
 	n, err := io.Copy(io.MultiWriter(f, h), body)
-	_ = f.Close()
+	if err == nil {
+		err = f.Sync()
+	}
+	if e := f.Close(); err == nil {
+		err = e
+	}
 	if err != nil {
 		_ = os.Remove(tmp)
 		return nil, err
@@ -164,9 +181,10 @@ func (s *Store) ListParts(uploadID string) ([]MultipartPart, error) {
 		_, _ = io.Copy(h, f)
 		_ = f.Close()
 		parts = append(parts, MultipartPart{
-			PartNumber: n,
-			ETag:       `"` + hex.EncodeToString(h.Sum(nil)) + `"`,
-			Size:       info.Size(),
+			PartNumber:   n,
+			ETag:         `"` + hex.EncodeToString(h.Sum(nil)) + `"`,
+			LastModified: info.ModTime().UTC(),
+			Size:         info.Size(),
 		})
 	}
 	sort.Slice(parts, func(i, j int) bool { return parts[i].PartNumber < parts[j].PartNumber })
@@ -175,15 +193,51 @@ func (s *Store) ListParts(uploadID string) ([]MultipartPart, error) {
 
 // CompleteMultipartUpload concatenates parts into the final object.
 func (s *Store) CompleteMultipartUpload(uploadID string, parts []MultipartPart) (*ObjectMeta, error) {
+	meta, err := s.AssembleMultipartUpload(uploadID, parts)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.AbortMultipartUpload(uploadID); err != nil {
+		return nil, err
+	}
+	return meta, nil
+}
+
+// AssembleMultipartUpload retains parts until the caller confirms replication.
+func (s *Store) AssembleMultipartUpload(uploadID string, parts []MultipartPart) (*ObjectMeta, error) {
+	s.multipartMu.Lock()
+	defer s.multipartMu.Unlock()
 	meta, err := s.loadMultipart(uploadID)
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ok, err := s.PolkaExists(meta.Polka); err != nil || !ok {
+		return nil, ErrPolkaNotFound
+	}
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("нет частей")
 	}
-	sort.Slice(parts, func(i, j int) bool { return parts[i].PartNumber < parts[j].PartNumber })
-
+	available, err := s.ListParts(uploadID)
+	if err != nil {
+		return nil, err
+	}
+	byNumber := map[int]MultipartPart{}
+	for _, p := range available {
+		byNumber[p.PartNumber] = p
+	}
+	composite := md5.New()
+	previous := 0
+	for _, p := range parts {
+		got, ok := byNumber[p.PartNumber]
+		if !ok || p.PartNumber <= previous || p.ETag != got.ETag {
+			return nil, fmt.Errorf("invalid part order or ETag")
+		}
+		previous = p.PartNumber
+		raw, _ := hex.DecodeString(strings.Trim(got.ETag, `"`))
+		composite.Write(raw)
+	}
 	op, err := s.objectPath(meta.Polka, meta.Key)
 	if err != nil {
 		return nil, err
@@ -215,6 +269,11 @@ func (s *Store) CompleteMultipartUpload(uploadID string, parts []MultipartPart) 
 		}
 		total += n
 	}
+	if err := out.Sync(); err != nil {
+		out.Close()
+		os.Remove(tmp)
+		return nil, err
+	}
 	if err := out.Close(); err != nil {
 		_ = os.Remove(tmp)
 		return nil, err
@@ -226,19 +285,34 @@ func (s *Store) CompleteMultipartUpload(uploadID string, parts []MultipartPart) 
 	obj := &ObjectMeta{
 		Key:          meta.Key,
 		Size:         total,
-		ETag:         `"` + hex.EncodeToString(h.Sum(nil)) + `"`,
+		ETag:         fmt.Sprintf(`"%s-%d"`, hex.EncodeToString(composite.Sum(nil)), len(parts)),
 		ContentType:  meta.ContentType,
 		LastModified: time.Now().UTC(),
 	}
-	_ = s.writeSideMeta(op, obj)
-	_ = os.RemoveAll(s.multipartDir(uploadID))
+	if err := s.writeSideMeta(op, obj); err != nil {
+		return nil, err
+	}
 	return obj, nil
 }
 
 // AbortMultipartUpload removes an in-progress upload.
 func (s *Store) AbortMultipartUpload(uploadID string) error {
+	s.multipartMu.Lock()
+	defer s.multipartMu.Unlock()
 	if _, err := s.loadMultipart(uploadID); err != nil {
 		return err
 	}
 	return os.RemoveAll(s.multipartDir(uploadID))
+}
+
+// ValidateMultipartTarget prevents an upload id being used with a different bucket/key.
+func (s *Store) ValidateMultipartTarget(id, polka, key string) error {
+	m, err := s.loadMultipart(id)
+	if err != nil {
+		return err
+	}
+	if m.Polka != polka || m.Key != key {
+		return ErrNoSuchUpload
+	}
+	return nil
 }

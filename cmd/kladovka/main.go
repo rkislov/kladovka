@@ -56,6 +56,7 @@ func main() {
 	}
 
 	reg := cluster.NewRegistry(cfg.NodeID, cfg.NodeURL, cfg.PeerNodes, cfg.ClusterVerifyTLS, cfg.HealthInterval)
+	reg.SetToken(cluster.SharedToken(cfg.ClusterToken, cfg.SecretKey))
 	rep := &cluster.Replicator{Registry: reg, ReplicationFactor: cfg.ReplicationFactor}
 
 	authenticator := &auth.Authenticator{
@@ -81,13 +82,15 @@ func main() {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- httpserver.ListenAndServe(cfg, srv.Handler())
+		errCh <- httpserver.ListenAndServeContext(ctx, cfg, srv.Handler())
 	}()
 
 	select {
 	case <-ctx.Done():
 		log.Printf("kladovka: shutting down")
-		os.Exit(0)
+		if err := <-errCh; err != nil {
+			log.Printf("shutdown: %v", err)
+		}
 	case err := <-errCh:
 		if err != nil {
 			log.Fatalf("server: %v", err)

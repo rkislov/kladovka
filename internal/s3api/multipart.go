@@ -14,7 +14,9 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/rkislov/kladovka/internal/metrics"
 	"github.com/rkislov/kladovka/internal/storage"
 )
 
@@ -48,6 +50,12 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 	_, hasUploads := q["uploads"]
 	uploadID := q.Get("uploadId")
 	partNumber := q.Get("partNumber")
+	if uploadID != "" {
+		if err := s.Store.ValidateMultipartTarget(uploadID, polka, key); err != nil {
+			writeS3Error(w, http.StatusNotFound, "NoSuchUpload", err.Error(), r.URL.Path)
+			return true
+		}
+	}
 
 	switch r.Method {
 	case http.MethodPost:
@@ -78,11 +86,28 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 				writeS3Error(w, http.StatusBadRequest, "MalformedXML", err.Error(), r.URL.Path)
 				return true
 			}
+			if err := verifyPayload(r, body); err != nil {
+				writeS3Error(w, http.StatusBadRequest, "XAmzContentSHA256Mismatch", err.Error(), r.URL.Path)
+				return true
+			}
 			parts := make([]storage.MultipartPart, 0, len(req.Parts))
 			for _, p := range req.Parts {
 				parts = append(parts, storage.MultipartPart{PartNumber: p.PartNumber, ETag: p.ETag})
 			}
-			meta, err := s.Store.CompleteMultipartUpload(uploadID, parts)
+			available, _ := s.Store.ListParts(uploadID)
+			sizes := map[int]int64{}
+			for _, p := range available {
+				sizes[p.PartNumber] = p.Size
+			}
+			var total int64
+			for _, p := range parts {
+				total += sizes[p.PartNumber]
+			}
+			if s.Cfg.MaxObjectSize > 0 && total > s.Cfg.MaxObjectSize {
+				writeS3Error(w, http.StatusRequestEntityTooLarge, "EntityTooLarge", "object too large", r.URL.Path)
+				return true
+			}
+			meta, err := s.Store.AssembleMultipartUpload(uploadID, parts)
 			if err != nil {
 				if errors.Is(err, storage.ErrNoSuchUpload) {
 					writeS3Error(w, http.StatusNotFound, "NoSuchUpload", err.Error(), r.URL.Path)
@@ -91,6 +116,26 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 				writeS3Error(w, http.StatusBadRequest, "InvalidRequest", err.Error(), r.URL.Path)
 				return true
 			}
+			if s.Cfg.ReplicationFactor > 1 {
+				rc, _, e := s.Store.GetObject(polka, key)
+				if e == nil {
+					e = s.Rep.ReplicatePut(r.Context(), polka, key, rc.(io.ReadSeeker), meta.ContentType, meta.ETag)
+					rc.Close()
+				}
+				if e != nil {
+					metrics.RecordReplicationFailed()
+					writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "multipart stored locally; replication incomplete", r.URL.Path)
+					return true
+				}
+				metrics.RecordReplicationOK()
+				metrics.RecordReplicationPublished(s.Cfg.ReplicationFactor - 1)
+			}
+			if err := s.Store.AbortMultipartUpload(uploadID); err != nil {
+				writeS3Error(w, http.StatusInternalServerError, "InternalError", err.Error(), r.URL.Path)
+				return true
+			}
+			metrics.RecordS3Operation("CompleteMultipartUpload", polka)
+			metrics.RecordBytesUploaded(polka, meta.Size)
 			writeXML(w, http.StatusOK, completeMultipartUploadResult{
 				Xmlns:    "http://s3.amazonaws.com/doc/2006-03-01/",
 				Location: "/" + polka + "/" + key,
@@ -107,7 +152,19 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 				writeS3Error(w, http.StatusBadRequest, "InvalidArgument", "bad partNumber", r.URL.Path)
 				return true
 			}
-			part, err := s.Store.UploadPart(uploadID, n, r.Body)
+			body, _, err := s.spoolBody(r, true)
+			if err != nil {
+				status := http.StatusBadRequest
+				code := "InvalidRequest"
+				if errors.Is(err, errTooLarge) {
+					status = http.StatusRequestEntityTooLarge
+					code = "EntityTooLarge"
+				}
+				writeS3Error(w, status, code, err.Error(), r.URL.Path)
+				return true
+			}
+			defer removeSpool(body)
+			part, err := s.Store.UploadPart(uploadID, n, body)
 			if err != nil {
 				if errors.Is(err, storage.ErrNoSuchUpload) {
 					writeS3Error(w, http.StatusNotFound, "NoSuchUpload", err.Error(), r.URL.Path)
@@ -166,9 +223,10 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 			}
 			for _, p := range parts {
 				out.Parts = append(out.Parts, partXML{
-					PartNumber: p.PartNumber,
-					ETag:       p.ETag,
-					Size:       p.Size,
+					PartNumber:   p.PartNumber,
+					LastModified: p.LastModified.Format(time.RFC3339),
+					ETag:         p.ETag,
+					Size:         p.Size,
 				})
 			}
 			writeXML(w, http.StatusOK, out)

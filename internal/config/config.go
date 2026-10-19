@@ -10,6 +10,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -23,13 +24,14 @@ type Config struct {
 	Region     string
 
 	// TLS (optional). When both CertFile and KeyFile are set, HTTPS is enabled.
-	TLSCertFile string
-	TLSKeyFile  string
+	TLSCertFile   string
+	TLSKeyFile    string
 	TLSMinVersion string // "1.2" or "1.3"
 
 	// S3 credentials (fallback / bootstrap)
-	AccessKey string
-	SecretKey string
+	ClusterToken string
+	AccessKey    string
+	SecretKey    string
 
 	// Cluster
 	NodeID            string
@@ -45,6 +47,34 @@ type Config struct {
 
 // Load reads configuration from environment variables.
 func Load() (*Config, error) {
+	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_OBJECT_SIZE"} {
+		if v := os.Getenv(key); v != "" {
+			if _, err := strconv.ParseInt(v, 10, 64); err != nil {
+				return nil, fmt.Errorf("%s must be an integer", key)
+			}
+		}
+	}
+	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC"} {
+		if raw := os.Getenv(key); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil {
+				return nil, fmt.Errorf("%s is out of range", key)
+			}
+			if key == "HEALTH_INTERVAL_SEC" && (n <= 0 || int64(n) > int64((1<<63-1)/int64(time.Second))) {
+				return nil, fmt.Errorf("HEALTH_INTERVAL_SEC is out of range")
+			}
+		}
+	}
+	for _, key := range []string{"CLUSTER_VERIFY_TLS"} {
+		if v := strings.ToLower(os.Getenv(key)); v != "" {
+			switch v {
+			case "1", "true", "yes", "on", "0", "false", "no", "off":
+			default:
+				return nil, fmt.Errorf("%s must be boolean", key)
+			}
+		}
+	}
+
 	cfg := &Config{
 		ListenAddr:        getenv("LISTEN_ADDR", ":8000"),
 		DataRoot:          getenv("DATA_ROOT", "./data"),
@@ -52,6 +82,7 @@ func Load() (*Config, error) {
 		TLSCertFile:       os.Getenv("TLS_CERT_FILE"),
 		TLSKeyFile:        os.Getenv("TLS_KEY_FILE"),
 		TLSMinVersion:     getenv("TLS_MIN_VERSION", "1.2"),
+		ClusterToken:      os.Getenv("CLUSTER_TOKEN"),
 		AccessKey:         getenv("ACCESS_KEY", "kladovka"),
 		SecretKey:         getenv("SECRET_KEY", "kladovka-secret"),
 		NodeID:            getenv("NODE_ID", "node-1"),
@@ -59,7 +90,7 @@ func Load() (*Config, error) {
 		ReplicationFactor: getenvInt("REPLICATION_FACTOR", 1),
 		ClusterVerifyTLS:  getenvBool("CLUSTER_VERIFY_TLS", true),
 		HealthInterval:    time.Duration(getenvInt("HEALTH_INTERVAL_SEC", 10)) * time.Second,
-		MaxObjectSize:     int64(getenvInt("MAX_OBJECT_SIZE", 0)),
+		MaxObjectSize:     getenvInt64("MAX_OBJECT_SIZE", 0),
 	}
 	if peers := strings.TrimSpace(os.Getenv("PEER_NODES")); peers != "" {
 		for _, p := range strings.Split(peers, ",") {
@@ -70,13 +101,40 @@ func Load() (*Config, error) {
 		}
 	}
 	if cfg.ReplicationFactor < 1 {
-		cfg.ReplicationFactor = 1
+		return nil, fmt.Errorf("REPLICATION_FACTOR must be positive")
 	}
 	if cfg.TLSCertFile != "" && cfg.TLSKeyFile == "" {
 		return nil, fmt.Errorf("TLS_KEY_FILE required when TLS_CERT_FILE is set")
 	}
 	if cfg.TLSKeyFile != "" && cfg.TLSCertFile == "" {
 		return nil, fmt.Errorf("TLS_CERT_FILE required when TLS_KEY_FILE is set")
+	}
+	if cfg.HealthInterval <= 0 {
+		return nil, fmt.Errorf("HEALTH_INTERVAL_SEC must be positive")
+	}
+	if cfg.MaxObjectSize < 0 || cfg.MaxObjectSize == 1<<63-1 {
+		return nil, fmt.Errorf("MAX_OBJECT_SIZE must not be negative")
+	}
+	if cfg.TLSMinVersion != "1.2" && cfg.TLSMinVersion != "1.3" {
+		return nil, fmt.Errorf("TLS_MIN_VERSION must be 1.2 or 1.3")
+	}
+	self, err := url.Parse(cfg.NodeURL)
+	if err != nil || self.Host == "" || (self.Scheme != "http" && self.Scheme != "https") || self.User != nil || self.RawQuery != "" || (self.Path != "" && self.Path != "/") {
+		return nil, fmt.Errorf("NODE_URL must be an http(s) base URL")
+	}
+	if len(cfg.PeerNodes) > 0 && cfg.NodeID != self.Host {
+		return nil, fmt.Errorf("in a cluster NODE_ID must match NODE_URL host:port")
+	}
+	seen := map[string]bool{self.Host: true}
+	for _, raw := range cfg.PeerNodes {
+		u, e := url.Parse(raw)
+		if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || (u.Path != "" && u.Path != "/") || seen[u.Host] {
+			return nil, fmt.Errorf("PEER_NODES must contain distinct http(s) base URLs excluding this node")
+		}
+		seen[u.Host] = true
+	}
+	if cfg.ReplicationFactor > len(seen) {
+		return nil, fmt.Errorf("REPLICATION_FACTOR exceeds configured node count")
 	}
 	return cfg, nil
 }
@@ -118,4 +176,16 @@ func getenvBool(k string, def bool) bool {
 	default:
 		return def
 	}
+}
+
+func getenvInt64(key string, fallback int64) int64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
