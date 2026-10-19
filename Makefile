@@ -2,12 +2,16 @@
 # Licensed under the Apache License, Version 2.0
 
 APP=kladovka
-VERSION?=0.3.0
+VERSION?=0.4.0-dev
 COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 LDFLAGS=-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 DIST=dist
 
-.PHONY: build test run clean release checksums
+.PHONY: build test run clean release checksums ui
+
+ui:
+	npm ci --ignore-scripts --cache .cache/npm
+	npm run build:css
 
 build:
 	mkdir -p bin
