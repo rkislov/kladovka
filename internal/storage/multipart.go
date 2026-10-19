@@ -245,7 +245,7 @@ func (s *Store) AssembleMultipartUpload(uploadID string, parts []MultipartPart) 
 	previous := 0
 	for _, p := range parts {
 		got, ok := byNumber[p.PartNumber]
-		if !ok || p.PartNumber <= previous || p.ETag != got.ETag {
+		if !ok || p.PartNumber <= previous || (p.ETag != got.ETag && `"`+p.ETag+`"` != got.ETag) {
 			return nil, fmt.Errorf("invalid part order or ETag")
 		}
 		previous = p.PartNumber
