@@ -188,7 +188,7 @@ func TestTwoNodeForwardingReplicationAndFailure(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cfg := &config.Config{AccessKey: "test", SecretKey: "secret", Region: "us-east-1", NodeID: cluster.NodeIDFromURL(self), NodeURL: self, ReplicationFactor: 2, ClusterToken: "cluster-secret"}
+		cfg := &config.Config{AccessKey: "test", SecretKey: "secret", Region: "us-east-1", NodeID: cluster.NodeIDFromURL(self), NodeURL: self, ReplicationFactor: 2, ClusterToken: "cluster-secret", MaxConcurrentUploads: 1}
 		reg := cluster.NewRegistry(cfg.NodeID, self, []string{peer}, true, time.Second)
 		reg.SetToken(cfg.ClusterToken)
 		s := &Server{Cfg: cfg, Store: st, Reg: reg, Rep: &cluster.Replicator{Registry: reg, ReplicationFactor: 2}, Auth: &auth.Authenticator{Region: cfg.Region, Creds: auth.Credentials{"test": "secret"}}}

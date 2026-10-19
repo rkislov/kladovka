@@ -17,3 +17,11 @@ func diskUsage(root string) (uint64, uint64, error) {
 	used := (st.Blocks - st.Bfree) * uint64(st.Bsize)
 	return used, total, nil
 }
+
+func diskFree(root string) (uint64, error) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(root, &st); err != nil {
+		return 0, err
+	}
+	return uint64(st.Bavail) * uint64(st.Bsize), nil
+}

@@ -135,6 +135,15 @@ func mapStorageErr(err error) (int, string, string) {
 	if errors.Is(err, errClusterChange) {
 		return http.StatusServiceUnavailable, "ServiceUnavailable", err.Error()
 	}
+	if errors.Is(err, storage.ErrQuotaExceeded) || errors.Is(err, storage.ErrInsufficientSpace) {
+		return http.StatusInsufficientStorage, "InsufficientStorage", err.Error()
+	}
+	if errors.Is(err, storage.ErrIntegrity) {
+		return http.StatusInternalServerError, "InvalidObjectState", "object integrity check failed"
+	}
+	if errors.Is(err, storage.ErrPendingWrite) {
+		return http.StatusServiceUnavailable, "ServiceUnavailable", err.Error()
+	}
 	switch err {
 	case storage.ErrPolkaNotFound:
 		return http.StatusNotFound, "NoSuchBucket", "The specified shelf (полка) does not exist"

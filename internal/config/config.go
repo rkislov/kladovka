@@ -42,30 +42,37 @@ type Config struct {
 	HealthInterval    time.Duration
 
 	// Limits
-	MaxObjectSize int64 // 0 = unlimited
+	MaxObjectSize        int64 // 0 = unlimited
+	MaxConcurrentUploads int
+	MaxTempBytes         int64
+	StorageQuotaBytes    int64
+	MinFreeDiskBytes     int64
+	VerifyObjectChecksum bool
+	MultipartTTL         time.Duration
+	CleanupInterval      time.Duration
 }
 
 // Load reads configuration from environment variables.
 func Load() (*Config, error) {
-	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_OBJECT_SIZE"} {
+	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_OBJECT_SIZE", "MAX_TEMP_BYTES", "STORAGE_QUOTA_BYTES", "MIN_FREE_DISK_BYTES", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC"} {
 		if v := os.Getenv(key); v != "" {
 			if _, err := strconv.ParseInt(v, 10, 64); err != nil {
 				return nil, fmt.Errorf("%s must be an integer", key)
 			}
 		}
 	}
-	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC"} {
+	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC"} {
 		if raw := os.Getenv(key); raw != "" {
 			n, err := strconv.Atoi(raw)
 			if err != nil {
 				return nil, fmt.Errorf("%s is out of range", key)
 			}
-			if key == "HEALTH_INTERVAL_SEC" && (n <= 0 || int64(n) > int64((1<<63-1)/int64(time.Second))) {
+			if (key == "HEALTH_INTERVAL_SEC" || key == "MULTIPART_TTL_SEC" || key == "CLEANUP_INTERVAL_SEC") && (n <= 0 || int64(n) > int64((1<<63-1)/int64(time.Second))) {
 				return nil, fmt.Errorf("HEALTH_INTERVAL_SEC is out of range")
 			}
 		}
 	}
-	for _, key := range []string{"CLUSTER_VERIFY_TLS"} {
+	for _, key := range []string{"CLUSTER_VERIFY_TLS", "VERIFY_OBJECT_CHECKSUM"} {
 		if v := strings.ToLower(os.Getenv(key)); v != "" {
 			switch v {
 			case "1", "true", "yes", "on", "0", "false", "no", "off":
@@ -76,21 +83,28 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		ListenAddr:        getenv("LISTEN_ADDR", ":8000"),
-		DataRoot:          getenv("DATA_ROOT", "./data"),
-		Region:            getenv("REGION", "us-east-1"),
-		TLSCertFile:       os.Getenv("TLS_CERT_FILE"),
-		TLSKeyFile:        os.Getenv("TLS_KEY_FILE"),
-		TLSMinVersion:     getenv("TLS_MIN_VERSION", "1.2"),
-		ClusterToken:      os.Getenv("CLUSTER_TOKEN"),
-		AccessKey:         getenv("ACCESS_KEY", "kladovka"),
-		SecretKey:         getenv("SECRET_KEY", "kladovka-secret"),
-		NodeID:            getenv("NODE_ID", "node-1"),
-		NodeURL:           getenv("NODE_URL", "http://localhost:8000"),
-		ReplicationFactor: getenvInt("REPLICATION_FACTOR", 1),
-		ClusterVerifyTLS:  getenvBool("CLUSTER_VERIFY_TLS", true),
-		HealthInterval:    time.Duration(getenvInt("HEALTH_INTERVAL_SEC", 10)) * time.Second,
-		MaxObjectSize:     getenvInt64("MAX_OBJECT_SIZE", 0),
+		ListenAddr:           getenv("LISTEN_ADDR", ":8000"),
+		DataRoot:             getenv("DATA_ROOT", "./data"),
+		Region:               getenv("REGION", "us-east-1"),
+		TLSCertFile:          os.Getenv("TLS_CERT_FILE"),
+		TLSKeyFile:           os.Getenv("TLS_KEY_FILE"),
+		TLSMinVersion:        getenv("TLS_MIN_VERSION", "1.2"),
+		ClusterToken:         os.Getenv("CLUSTER_TOKEN"),
+		AccessKey:            getenv("ACCESS_KEY", "kladovka"),
+		SecretKey:            getenv("SECRET_KEY", "kladovka-secret"),
+		NodeID:               getenv("NODE_ID", "node-1"),
+		NodeURL:              getenv("NODE_URL", "http://localhost:8000"),
+		ReplicationFactor:    getenvInt("REPLICATION_FACTOR", 1),
+		ClusterVerifyTLS:     getenvBool("CLUSTER_VERIFY_TLS", true),
+		HealthInterval:       time.Duration(getenvInt("HEALTH_INTERVAL_SEC", 10)) * time.Second,
+		MaxObjectSize:        getenvInt64("MAX_OBJECT_SIZE", 0),
+		MaxConcurrentUploads: getenvInt("MAX_CONCURRENT_UPLOADS", 4),
+		MaxTempBytes:         getenvInt64("MAX_TEMP_BYTES", 2<<30),
+		StorageQuotaBytes:    getenvInt64("STORAGE_QUOTA_BYTES", 0),
+		MinFreeDiskBytes:     getenvInt64("MIN_FREE_DISK_BYTES", 64<<20),
+		VerifyObjectChecksum: getenvBool("VERIFY_OBJECT_CHECKSUM", true),
+		MultipartTTL:         time.Duration(getenvInt("MULTIPART_TTL_SEC", 86400)) * time.Second,
+		CleanupInterval:      time.Duration(getenvInt("CLEANUP_INTERVAL_SEC", 600)) * time.Second,
 	}
 	if peers := strings.TrimSpace(os.Getenv("PEER_NODES")); peers != "" {
 		for _, p := range strings.Split(peers, ",") {
@@ -114,6 +128,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.MaxObjectSize < 0 || cfg.MaxObjectSize == 1<<63-1 {
 		return nil, fmt.Errorf("MAX_OBJECT_SIZE must not be negative")
+	}
+	if cfg.MaxConcurrentUploads < 1 || cfg.MaxConcurrentUploads > 1024 || cfg.MaxTempBytes < 0 || cfg.StorageQuotaBytes < 0 || cfg.MinFreeDiskBytes < 0 || cfg.MultipartTTL <= 0 || cfg.CleanupInterval <= 0 {
+		return nil, fmt.Errorf("invalid upload/storage limits")
 	}
 	if cfg.TLSMinVersion != "1.2" && cfg.TLSMinVersion != "1.3" {
 		return nil, fmt.Errorf("TLS_MIN_VERSION must be 1.2 or 1.3")

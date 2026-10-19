@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
@@ -28,7 +29,7 @@ import (
 )
 
 var (
-	version = "0.3.0"
+	version = "0.4.0-dev"
 	commit  = "dev"
 )
 
@@ -50,7 +51,7 @@ func main() {
 		log.Fatalf("tls: %v", err)
 	}
 
-	store, err := storage.New(cfg.DataRoot)
+	store, err := storage.NewWithOptions(cfg.DataRoot, storage.Options{QuotaBytes: cfg.StorageQuotaBytes, MinFreeBytes: uint64(cfg.MinFreeDiskBytes), VerifyReads: cfg.VerifyObjectChecksum, MultipartTTL: cfg.MultipartTTL})
 	if err != nil {
 		log.Fatalf("storage: %v", err)
 	}
@@ -76,6 +77,27 @@ func main() {
 	defer stop()
 
 	go reg.StartHealthLoop(ctx)
+	go func() {
+		cleanup := func() {
+			removed, err := store.CleanupMultipart(time.Now())
+			if err != nil {
+				log.Printf("multipart cleanup: %v", err)
+			} else if removed > 0 {
+				log.Printf("multipart cleanup: removed %d expired uploads", removed)
+			}
+		}
+		cleanup()
+		ticker := time.NewTicker(cfg.CleanupInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cleanup()
+			}
+		}
+	}()
 
 	log.Printf("kladovka %s starting: node=%s data=%s rf=%d peers=%d tls=%v",
 		version, cfg.NodeID, cfg.DataRoot, cfg.ReplicationFactor, len(cfg.PeerNodes), cfg.TLSEnabled())

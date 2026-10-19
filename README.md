@@ -23,6 +23,12 @@
 
 Панель, JSON API и метрики требуют HTTP Basic (ACCESS_KEY / SECRET_KEY), внутренний API — Bearer-токен. S3 использует SigV4. Перед сетевой эксплуатацией смените стандартные ключи и настройте HTTPS. Кластер пока требует фиксированного состава и не имеет автоматического восстановления потерянных копий.
 
+## Рабочая версия 0.4.0-dev
+
+Светлая адаптивная панель на локально собранном Tailwind CSS. Журнал незавершённых записей/удалений, восстановление при запуске, SHA-256-проверка чтения, квота данных, бюджет временных тел, ограничение параллельных загрузок и TTL multipart. Новый стабильный релиз этой рабочей версии пока не опубликован; предыдущий релиз — v0.3.0.
+
+Изменение UI: `make ui` (Node.js 22+), затем `make build`. Обычная Go-сборка использует включённый CSS и не зависит от Node.js/CDN. Проверка AWS CLI и резервного восстановления: `python3 scripts/smoke.py --binary ./bin/kladovka` (отдельные временные каталоги).
+
 ## Возможности
 
 - Path-style S3 API: ListBuckets / CreateBucket / PutObject / GetObject / HeadObject / DeleteObject / ListObjectsV2
@@ -53,7 +59,7 @@
 Локальная кросс-сборка:
 
 ```bash
-make release VERSION=0.3.0
+make release VERSION=0.4.0-dev
 ```
 
 ---
@@ -225,12 +231,12 @@ make test
 
 ## UI и обои
 
-Веб-UI (`/ui/`) — stencil / street-art оформление на бетонной текстуре.
+Веб-UI (`/ui/`) — светлая панель на Tailwind CSS. Ранее подготовленные street-art обои сохранены отдельным wallpaper pack.
 
 - Скриншоты: [`docs/screenshots/`](./docs/screenshots/)
 - Wallpaper pack (1080p → 5K Retina, MacBook Retina): [`docs/wallpapers/`](./docs/wallpapers/)
 
-![UI: files and statistics](./docs/screenshots/ui-current.png)
+![Светлая панель](./docs/screenshots/ui-light.png)
 
 ---
 
