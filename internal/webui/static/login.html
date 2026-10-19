@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+<head>
+ <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="color-scheme" content="light" />
+ <title>Вход — Кладовка</title><link rel="stylesheet" href="/ui/app.css" /><script src="/ui/login.js" defer></script>
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-800 antialiased">
+ <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
+  <a href="/ui/" class="mb-8 text-xl font-bold tracking-tight text-slate-900">Кладовка</a>
+  <section class="panel p-6 sm:p-8">
+   <h1 class="text-2xl font-semibold tracking-tight text-slate-950">С возвращением</h1>
+   <p class="mt-2 text-sm leading-6 text-slate-500">Войдите, чтобы управлять файлами и хранилищем.</p>
+   <form id="login-form" class="mt-6 space-y-4">
+    <div><label for="user" class="mb-2 block text-sm font-medium">Имя администратора</label><input id="user" name="username" autocomplete="username" class="input w-full" required autofocus /></div>
+    <div><label for="password" class="mb-2 block text-sm font-medium">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" class="input w-full" required /></div>
+    <p id="login-error" class="text-sm text-red-700" role="alert" hidden></p>
+    <button id="login-submit" class="btn-primary w-full" type="submit">Войти</button>
+   </form>
+  </section>
+  <p class="mt-5 text-sm leading-6 text-slate-500">Реквизиты панели выдаёт администратор. Ключи S3 используются отдельно — в приложениях для работы с файлами.</p>
+ </main>
+</body>
+</html>

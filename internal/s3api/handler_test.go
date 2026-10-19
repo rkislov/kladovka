@@ -75,10 +75,16 @@ func signWith(r *http.Request, body []byte, when time.Time, accessKey, secretKey
 }
 func TestProtectedEndpointsAndCSRF(t *testing.T) {
 	_, h := testServer(t, 100)
-	for _, path := range []string{"/ui/", "/api/polki", "/api/stats", "/metrics", "/cluster", "/internal/health", "/internal/object/demo/x"} {
+	for _, path := range []string{"/api/polki", "/api/stats", "/metrics", "/cluster", "/internal/health", "/internal/object/demo/x"} {
 		if w := call(h, "GET", path, nil, ""); w.Code != 401 {
 			t.Errorf("%s: %d", path, w.Code)
 		}
+	}
+	if w := call(h, "GET", "/ui/", nil, ""); w.Code != 303 || w.Header().Get("Location") != "/ui/login.html" {
+		t.Fatal("missing login redirect")
+	}
+	if w := call(h, "GET", "/ui/login.html", nil, ""); w.Code != 200 {
+		t.Fatal("login page unavailable")
 	}
 	if w := call(h, "GET", "/healthz", nil, ""); w.Code != 200 {
 		t.Fatal(w.Code)
@@ -234,6 +240,31 @@ func TestTwoNodeForwardingReplicationAndFailure(t *testing.T) {
 		meta, e := s.Store.HeadObject("demo", "nested/key")
 		if e != nil || meta.Size != 5 {
 			t.Fatalf("replica: %+v %v", meta, e)
+		}
+	}
+	// A session is local to the receiving node; authenticated browser writes still
+	// delegate to the primary without forwarding the session cookie or CSRF token.
+	secondary := 0
+	if nodes[0].Rep.IsPrimary("demo", "session-upload") {
+		secondary = 1
+	}
+	cookie, csrf := login(t, nodes[secondary].Handler())
+	sessionReq, _ := http.NewRequest("PUT", servers[secondary].URL+"/api/object/demo/session-upload", strings.NewReader("browser"))
+	sessionReq.AddCookie(cookie)
+	sessionReq.Header.Set("X-CSRF-Token", csrf)
+	sessionResp, sessionErr := http.DefaultClient.Do(sessionReq)
+	if sessionErr != nil {
+		t.Fatal(sessionErr)
+	}
+	sessionBody, _ := io.ReadAll(sessionResp.Body)
+	sessionResp.Body.Close()
+	if sessionResp.StatusCode != 200 {
+		t.Fatalf("session forwarding: %d %s", sessionResp.StatusCode, sessionBody)
+	}
+	for _, node := range nodes {
+		meta, err := node.Store.HeadObject("demo", "session-upload")
+		if err != nil || meta.Size != 7 {
+			t.Fatalf("session replica: %+v %v", meta, err)
 		}
 	}
 	// Force a local miss and verify range fallback through the authenticated internal API.

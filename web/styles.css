@@ -25,6 +25,8 @@ SOFTWARE.
 @import "tailwindcss" source(none);
 @source "../internal/webui/static/index.html";
 @source "../internal/webui/static/app.js";
+@source "../internal/webui/static/login.html";
+@source "../internal/webui/static/login.js";
 
 @layer base {
   [hidden] { display: none !important; }
