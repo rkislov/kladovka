@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const folderIcon = '<svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9H3z"/></svg>';
-let timer, openPolka = null, busy = false, refreshing = false, polki = [], signature = '', limits = {};
+let timer, openPolka = null, busy = false, refreshing = false, polki = [], signature = '', limits = {}, csrfToken = '';
 
 function objectCount(n) {
   const mod = n % 100;
@@ -25,9 +25,11 @@ function toast(message, error = false) {
   toast.timer = setTimeout(() => $('toast').classList.remove('show'), 6000);
 }
 async function api(url, options = {}) {
-  const response = await fetch(new URL(url, window.location.origin), { credentials: 'same-origin', ...options });
+  const response = await fetch(new URL(url, window.location.origin), { credentials: 'same-origin', ...options, headers: { ...options.headers, 'X-CSRF-Token': csrfToken } });
+  if (response.status === 401) { clearInterval(timer); location.replace('/ui/login.html'); throw Error('Сеанс завершён. Войдите снова.'); }
   if (!response.ok) {
     const body = await response.text();
+    if (response.status === 403 && body.includes('CSRF token required')) throw Error('Сеанс обновился. Обновите страницу и повторите действие.');
     const messages = { 401: 'Нужен вход: обновите страницу и введите реквизиты.', 413: 'Файл превышает допустимый размер.', 507: 'Не хватает места или превышена квота хранилища.', 503: 'Хранилище временно недоступно. Повторите действие позже.' };
     const xml = new DOMParser().parseFromString(body, 'application/xml');
     throw Error(messages[response.status] || xml.querySelector('Message')?.textContent || body.slice(0, 300) || 'Ошибка ' + response.status);
@@ -183,7 +185,21 @@ function schedule() {
   if ($('autorefresh').checked) timer = setInterval(() => { if (!busy && !document.hidden && document.activeElement.tagName !== 'INPUT') refresh(); }, 5000);
 }
 $('autorefresh').onchange = schedule;
-refresh(); schedule();
+async function startSession() {
+  try {
+    const session = await (await api('/api/session')).json();
+    csrfToken = session.csrf;
+    $('logout').title = 'Выйти: ' + session.user;
+    await refresh(); schedule();
+  } catch (e) { toast(e.message, true); }
+}
+$('logout').onclick = async () => {
+  if (busy) { toast('Дождитесь завершения операции.', true); return; }
+  try { await api('/api/session', { method: 'DELETE' }); clearInterval(timer); location.replace('/ui/login.html'); }
+  catch (e) { toast(e.message, true); }
+};
+window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
+startSession();
 
 document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', () => {
   document.querySelectorAll('.nav-link').forEach(item => {

@@ -12,10 +12,22 @@ import (
 )
 
 type principalContextKey struct{}
+type principalHolder struct {
+	value auth.Principal
+	set   bool
+}
+
+func withPrincipalHolder(ctx context.Context) context.Context {
+	return context.WithValue(ctx, principalContextKey{}, &principalHolder{})
+}
+func adminPrincipal(user string) auth.Principal { return auth.Principal{ID: user, Role: "admin"} }
 
 func requestPrincipal(r *http.Request) (auth.Principal, bool) {
-	p, ok := r.Context().Value(principalContextKey{}).(auth.Principal)
-	return p, ok
+	p, ok := r.Context().Value(principalContextKey{}).(*principalHolder)
+	if !ok {
+		return auth.Principal{}, false
+	}
+	return p.value, p.set
 }
 
 func (s *Server) adminCredentials() (string, string) {
@@ -34,6 +46,9 @@ func (s *Server) authenticateSigned(r *http.Request) (auth.Principal, error) {
 	}
 	p, err := auth.LoadPolicy(s.Cfg.AccessPolicyFile)
 	if err != nil {
+		return auth.Principal{}, err
+	}
+	if err := s.RecordPolicy(p); err != nil {
 		return auth.Principal{}, err
 	}
 	a := auth.Authenticator{Region: s.Cfg.Region, Creds: p.Credentials()}
@@ -73,7 +88,12 @@ func allowedRequest(p auth.Principal, r *http.Request) bool {
 }
 
 func setPrincipal(r *http.Request, p auth.Principal) {
-	*r = *r.WithContext(context.WithValue(r.Context(), principalContextKey{}, p))
+	holder, ok := r.Context().Value(principalContextKey{}).(*principalHolder)
+	if !ok {
+		*r = *r.WithContext(withPrincipalHolder(r.Context()))
+		holder = r.Context().Value(principalContextKey{}).(*principalHolder)
+	}
+	holder.value, holder.set = p, true
 }
 
 func visibleShelves(r *http.Request, names []string) []string {

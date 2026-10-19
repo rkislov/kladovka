@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rkislov/kladovka/internal/audit"
 	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
 	"github.com/rkislov/kladovka/internal/config"
@@ -30,15 +31,22 @@ import (
 
 // Server wires storage, auth and cluster into HTTP handlers.
 type Server struct {
-	Cfg         *config.Config
-	Store       *storage.Store
-	Auth        *auth.Authenticator
-	Rep         *cluster.Replicator
-	Reg         *cluster.Registry
-	uploadOnce  sync.Once
-	uploadSlots chan struct{}
-	tempMu      sync.Mutex
-	tempBytes   int64
+	Cfg          *config.Config
+	Store        *storage.Store
+	Auth         *auth.Authenticator
+	Rep          *cluster.Replicator
+	Reg          *cluster.Registry
+	uploadOnce   sync.Once
+	uploadSlots  chan struct{}
+	tempMu       sync.Mutex
+	tempBytes    int64
+	Audit        *audit.Log
+	sessionMu    sync.Mutex
+	sessions     map[[32]byte]browserSession
+	loginWindows map[string]loginWindow
+	policyMu     sync.Mutex
+	policySeen   bool
+	policyHash   [32]byte
 }
 
 // Handler returns the root mux with Prometheus metrics middleware.
@@ -54,13 +62,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/polki", s.handleAPIPolki)
 	mux.HandleFunc("/api/polki/", s.handleAPIPolki)
 	mux.HandleFunc("/api/stats", s.handleAPIStats)
+	mux.HandleFunc("/api/session", s.handleSession)
 	mux.HandleFunc("/api/object/", s.handleAPIObject)
 	mux.Handle("/ui/", webui.Handler())
 	mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/", http.StatusFound)
 	})
 	mux.HandleFunc("/", s.handleS3)
-	return metrics.Middleware(s.protect(s.limitUploads(mux)))
+	return metrics.Middleware(s.auditRequests(s.protect(s.limitUploads(mux))))
 }
 
 func (s *Server) refreshMetrics() {
@@ -328,11 +337,11 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {
 	principal, err := s.authenticateSigned(r)
 	if err == nil {
+		setPrincipal(r, principal)
 		if !allowedRequest(principal, r) {
 			writeS3Error(w, http.StatusForbidden, "AccessDenied", "access denied", r.URL.Path)
 			return false
 		}
-		setPrincipal(r, principal)
 		if strings.HasPrefix(r.Header.Get("X-Amz-Content-Sha256"), "STREAMING-") {
 			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "AWS streaming signatures are not supported; disable optional request checksums", r.URL.Path)
 			return false
@@ -537,7 +546,7 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 		w.Header().Set("ETag", meta.ETag)
 		w.Header().Set("Content-Type", meta.ContentType)
 		w.Header().Set("x-amz-kladovka-polka", polka)
-		counted := &responseCounter{ResponseWriter: w, status: http.StatusOK}
+		counted := &responseCounter{ResponseWriter: w}
 		http.ServeContent(counted, r, key, meta.LastModified, rc.(io.ReadSeeker))
 		if counted.status == http.StatusOK || counted.status == http.StatusPartialContent {
 			metrics.RecordS3Operation("GetObject", polka)
@@ -626,6 +635,13 @@ func (s *Server) forwardToPrimary(w http.ResponseWriter, r *http.Request, polka,
 		}
 	}
 	req.Host = r.Host
+	if active, _ := r.Context().Value(sessionContextKey{}).(bool); active {
+		// Browser sessions are node-local; delegate an authenticated admin operation.
+		req.Header.Del("Cookie")
+		req.Header.Del("X-CSRF-Token")
+		user, password := s.adminCredentials()
+		req.SetBasicAuth(user, password)
+	}
 	resp, err := s.Reg.Client().Do(req)
 	if err != nil {
 		writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error(), r.URL.Path)

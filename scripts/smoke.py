@@ -3,6 +3,7 @@
 import argparse
 import base64
 import hashlib
+import http.cookiejar
 import json
 import os
 from pathlib import Path
@@ -33,7 +34,7 @@ def main():
                'AWS_DEFAULT_REGION': 'us-east-1', 'AWS_CONFIG_FILE': str(root/'aws-config'),
                'AWS_SHARED_CREDENTIALS_FILE': str(root/'aws-credentials'), 'AWS_EC2_METADATA_DISABLED': 'true',
                'AWS_REQUEST_CHECKSUM_CALCULATION': 'when_required', 'AWS_RESPONSE_CHECKSUM_VALIDATION': 'when_required',
-               'ACCESS_POLICY_FILE': '', 'ADMIN_USER': '', 'ADMIN_PASSWORD': '', 'AWS_PAGER': '', 'LISTEN_ADDR': f'127.0.0.1:{port}', 'NODE_URL': endpoint, 'NODE_ID': 'smoke',
+               'AUDIT_LOG_FILE': '', 'SESSION_TTL_SEC': '28800', 'ACCESS_POLICY_FILE': '', 'ADMIN_USER': '', 'ADMIN_PASSWORD': '', 'AWS_PAGER': '', 'LISTEN_ADDR': f'127.0.0.1:{port}', 'NODE_URL': endpoint, 'NODE_ID': 'smoke',
                'ACCESS_KEY': 'smoke', 'SECRET_KEY': 'smoke-secret-for-tests', 'REGION': 'us-east-1',
                'PEER_NODES': '', 'REPLICATION_FACTOR': '1', 'CLUSTER_TOKEN': 'smoke-cluster-token',
                'HEALTH_INTERVAL_SEC': '1', 'TLS_MIN_VERSION': '1.2', 'CLUSTER_VERIFY_TLS': 'true',
@@ -110,7 +111,30 @@ def main():
             signed = aws('s3', 'presign', 's3://documents/nested/readme.txt', '--expires-in', '300').strip()
             with urllib.request.urlopen(signed, timeout=10) as response:
                 assert response.read() == small.read_bytes()
-            assert 'Обзор хранилища'.encode() in request('/ui/')
+            # Exercise the browser session independently of Basic API automation.
+            browser = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+            def browser_request(path, method='GET', body=None, csrf=''):
+                headers = {'Content-Type': 'application/json'}
+                if csrf:
+                    headers['X-CSRF-Token'] = csrf
+                data = json.dumps(body).encode() if body is not None else None
+                with browser.open(urllib.request.Request(endpoint+path, data=data, headers=headers, method=method), timeout=10) as response:
+                    return response.read()
+            user = env['ADMIN_USER'] or env['ACCESS_KEY']
+            password = env['ADMIN_PASSWORD'] or env['SECRET_KEY']
+            session = json.loads(browser_request('/api/session', 'POST', {'user': user, 'password': password}))
+            assert json.loads(browser_request('/api/session'))['csrf'] == session['csrf']
+            assert 'Обзор хранилища'.encode() in browser_request('/ui/')
+            browser_request('/api/polki', 'POST', {'name': 'session-check'}, session['csrf'])
+            browser_request('/api/polki/session-check', 'DELETE', csrf=session['csrf'])
+            browser_request('/api/session', 'DELETE', csrf=session['csrf'])
+            try:
+                browser_request('/api/session')
+            except urllib.error.HTTPError as error:
+                assert error.code == 401
+            else:
+                raise AssertionError('logged out session was accepted')
+            print('PASS browser login, CSRF write, logout, session revocation')
             assert len(request('/ui/app.css')) > 10000
             assert json.loads(request('/api/stats'))['objects_count'] == 2
             if args.access_policy:
@@ -142,6 +166,12 @@ def main():
                 aws('s3api', 'delete-object', '--bucket', 'documents', '--key', key)
             aws('s3api', 'delete-bucket', '--bucket', 'documents')
             print('PASS stopped-server backup → restore → SHA-256 verification → nested deletion')
+            events = (root/'restored'/'.audit.jsonl').read_text()
+            for secret in ['smoke-secret-for-tests', 'operator-password-tests', 'reader-secret-for-tests', 'X-Amz-Signature', session['csrf']]:
+                assert secret not in events
+            records = [json.loads(line) for line in events.splitlines()]
+            assert any(e['kind'] == 'result' and e.get('method') == 'DELETE' and e.get('path') == '/documents/large.bin' and e.get('status') == 204 and e['actor'] == ('automation' if args.access_policy else 'smoke') for e in records)
+            print('PASS audit attribution and exclusion of credentials, signatures and CSRF tokens')
         except Exception:
             log.flush()
             print((root/'server.log').read_text())

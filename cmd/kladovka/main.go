@@ -14,9 +14,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/rkislov/kladovka/internal/audit"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,6 +64,30 @@ func main() {
 		log.Fatalf("storage: %v", err)
 	}
 
+	auditPath := cfg.AuditLogFile
+	if auditPath == "" {
+		auditPath = filepath.Join(cfg.DataRoot, ".audit.jsonl")
+	}
+	auditAbs, err := filepath.Abs(auditPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dataAbs, err := filepath.Abs(cfg.DataRoot)
+	if err != nil {
+		log.Fatal(err)
+	}
+	relative, err := filepath.Rel(dataAbs, auditAbs)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if relative != ".audit.jsonl" && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		log.Fatal("audit log must be outside DATA_ROOT or use DATA_ROOT/.audit.jsonl")
+	}
+	auditLog, err := audit.Open(auditPath)
+	if err != nil {
+		log.Fatalf("audit: %v", err)
+	}
+	defer auditLog.Close()
 	reg := cluster.NewRegistry(cfg.NodeID, cfg.NodeURL, cfg.PeerNodes, cfg.ClusterVerifyTLS, cfg.HealthInterval)
 	reg.SetToken(cluster.SharedToken(cfg.ClusterToken, cfg.SecretKey))
 	rep := &cluster.Replicator{Registry: reg, ReplicationFactor: cfg.ReplicationFactor}
@@ -72,12 +99,29 @@ func main() {
 
 	srv := &s3api.Server{
 		Cfg:   cfg,
+		Audit: auditLog,
 		Store: store,
 		Auth:  authenticator,
 		Rep:   rep,
 		Reg:   reg,
 	}
 
+	adminUser := cfg.AdminUser
+	if adminUser == "" {
+		adminUser = cfg.AccessKey
+	}
+	if err := auditLog.Append(audit.Event{Node: cfg.NodeID, Kind: "admin_configuration", Actor: "local_configuration", Users: []audit.User{{ID: adminUser, Role: "admin"}}}); err != nil {
+		log.Fatalf("audit: %v", err)
+	}
+	if cfg.AccessPolicyFile != "" {
+		policy, err := auth.LoadPolicy(cfg.AccessPolicyFile)
+		if err != nil {
+			log.Fatalf("access policy: %v", err)
+		}
+		if err = srv.RecordPolicy(policy); err != nil {
+			log.Fatalf("audit policy: %v", err)
+		}
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

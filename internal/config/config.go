@@ -35,6 +35,8 @@ type Config struct {
 	AccessPolicyFile string
 	AdminUser        string
 	AdminPassword    string
+	SessionTTL       time.Duration
+	AuditLogFile     string
 
 	// Cluster
 	NodeID            string
@@ -57,20 +59,20 @@ type Config struct {
 
 // Load reads configuration from environment variables.
 func Load() (*Config, error) {
-	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_OBJECT_SIZE", "MAX_TEMP_BYTES", "STORAGE_QUOTA_BYTES", "MIN_FREE_DISK_BYTES", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC"} {
+	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_OBJECT_SIZE", "MAX_TEMP_BYTES", "STORAGE_QUOTA_BYTES", "MIN_FREE_DISK_BYTES", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC", "SESSION_TTL_SEC"} {
 		if v := os.Getenv(key); v != "" {
 			if _, err := strconv.ParseInt(v, 10, 64); err != nil {
 				return nil, fmt.Errorf("%s must be an integer", key)
 			}
 		}
 	}
-	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC"} {
+	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC", "SESSION_TTL_SEC"} {
 		if raw := os.Getenv(key); raw != "" {
 			n, err := strconv.Atoi(raw)
 			if err != nil {
 				return nil, fmt.Errorf("%s is out of range", key)
 			}
-			if (key == "HEALTH_INTERVAL_SEC" || key == "MULTIPART_TTL_SEC" || key == "CLEANUP_INTERVAL_SEC") && (n <= 0 || int64(n) > int64((1<<63-1)/int64(time.Second))) {
+			if (key == "HEALTH_INTERVAL_SEC" || key == "MULTIPART_TTL_SEC" || key == "CLEANUP_INTERVAL_SEC" || key == "SESSION_TTL_SEC") && (n <= 0 || int64(n) > int64((1<<63-1)/int64(time.Second))) {
 				return nil, fmt.Errorf("HEALTH_INTERVAL_SEC is out of range")
 			}
 		}
@@ -98,6 +100,8 @@ func Load() (*Config, error) {
 		AccessPolicyFile:     os.Getenv("ACCESS_POLICY_FILE"),
 		AdminUser:            os.Getenv("ADMIN_USER"),
 		AdminPassword:        os.Getenv("ADMIN_PASSWORD"),
+		SessionTTL:           time.Duration(getenvInt("SESSION_TTL_SEC", 28800)) * time.Second,
+		AuditLogFile:         os.Getenv("AUDIT_LOG_FILE"),
 		NodeID:               getenv("NODE_ID", "node-1"),
 		NodeURL:              getenv("NODE_URL", "http://localhost:8000"),
 		ReplicationFactor:    getenvInt("REPLICATION_FACTOR", 1),
@@ -119,6 +123,9 @@ func Load() (*Config, error) {
 				cfg.PeerNodes = append(cfg.PeerNodes, strings.TrimRight(p, "/"))
 			}
 		}
+	}
+	if cfg.SessionTTL < time.Minute || cfg.SessionTTL > 24*time.Hour {
+		return nil, fmt.Errorf("SESSION_TTL_SEC must be between 60 and 86400")
 	}
 	if cfg.ReplicationFactor < 1 {
 		return nil, fmt.Errorf("REPLICATION_FACTOR must be positive")
