@@ -27,13 +27,14 @@ def main():
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
         endpoint = f'http://127.0.0.1:{port}'
-        env = {**os.environ, 'AWS_ACCESS_KEY_ID': 'smoke', 'AWS_SECRET_ACCESS_KEY': 'smoke-secret',
+        env = {**{key: value for key, value in os.environ.items() if not key.startswith('AWS_')}, 'AWS_ACCESS_KEY_ID': 'smoke', 'AWS_SECRET_ACCESS_KEY': 'smoke-secret',
                'AWS_DEFAULT_REGION': 'us-east-1', 'AWS_CONFIG_FILE': str(root/'aws-config'),
                'AWS_SHARED_CREDENTIALS_FILE': str(root/'aws-credentials'), 'AWS_EC2_METADATA_DISABLED': 'true',
                'AWS_REQUEST_CHECKSUM_CALCULATION': 'when_required', 'AWS_RESPONSE_CHECKSUM_VALIDATION': 'when_required',
                'AWS_PAGER': '', 'LISTEN_ADDR': f'127.0.0.1:{port}', 'NODE_URL': endpoint, 'NODE_ID': 'smoke',
                'ACCESS_KEY': 'smoke', 'SECRET_KEY': 'smoke-secret', 'REGION': 'us-east-1',
                'PEER_NODES': '', 'REPLICATION_FACTOR': '1', 'CLUSTER_TOKEN': 'smoke-cluster-token',
+               'HEALTH_INTERVAL_SEC': '1', 'TLS_MIN_VERSION': '1.2', 'CLUSTER_VERIFY_TLS': 'true',
                'TLS_CERT_FILE': '', 'TLS_KEY_FILE': '', 'MIN_FREE_DISK_BYTES': '0',
                'MAX_OBJECT_SIZE': str(16 << 20), 'MAX_TEMP_BYTES': str(32 << 20),
                'STORAGE_QUOTA_BYTES': str(64 << 20), 'MAX_CONCURRENT_UPLOADS': '4',
