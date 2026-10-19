@@ -50,6 +50,11 @@ func main() {
 	if err := httpserver.ValidateTLSFiles(cfg); err != nil {
 		log.Fatalf("tls: %v", err)
 	}
+	if cfg.AccessPolicyFile != "" {
+		if _, err := auth.LoadPolicy(cfg.AccessPolicyFile); err != nil {
+			log.Fatalf("access policy: %v", err)
+		}
+	}
 
 	store, err := storage.NewWithOptions(cfg.DataRoot, storage.Options{QuotaBytes: cfg.StorageQuotaBytes, MinFreeBytes: uint64(cfg.MinFreeDiskBytes), VerifyReads: cfg.VerifyObjectChecksum, MultipartTTL: cfg.MultipartTTL})
 	if err != nil {

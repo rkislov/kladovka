@@ -50,6 +50,9 @@ func call(h http.Handler, method, path string, body []byte, credential string) *
 	return w
 }
 func sign(r *http.Request, body []byte, when time.Time) {
+	signWith(r, body, when, "test", "secret")
+}
+func signWith(r *http.Request, body []byte, when time.Time, accessKey, secretKey string) {
 	sum := sha256.Sum256(body)
 	payload := hex.EncodeToString(sum[:])
 	r.Header.Set("X-Amz-Content-Sha256", payload)
@@ -63,12 +66,12 @@ func sign(r *http.Request, body []byte, when time.Time) {
 	scope := date + "/us-east-1/s3/aws4_request"
 	message := "AWS4-HMAC-SHA256\n" + stamp + "\n" + scope + "\n" + hex.EncodeToString(hash[:])
 	mac := func(k []byte, v string) []byte { m := hmac.New(sha256.New, k); m.Write([]byte(v)); return m.Sum(nil) }
-	key := mac([]byte("AWS4secret"), date)
+	key := mac([]byte("AWS4"+secretKey), date)
 	for _, v := range []string{"us-east-1", "s3", "aws4_request"} {
 		key = mac(key, v)
 	}
 	signature := hex.EncodeToString(mac(key, message))
-	r.Header.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=test/%s, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=%s", scope, signature))
+	r.Header.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=%s", accessKey, scope, signature))
 }
 func TestProtectedEndpointsAndCSRF(t *testing.T) {
 	_, h := testServer(t, 100)

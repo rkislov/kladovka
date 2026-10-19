@@ -14,6 +14,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
 )
 
@@ -34,7 +35,14 @@ func (s *Server) protect(next http.Handler) http.Handler {
 			}
 		} else if path == "/ui" || strings.HasPrefix(path, "/ui/") || strings.HasPrefix(path, "/api/") || path == "/metrics" || path == "/cluster" {
 			user, pass, ok := r.BasicAuth()
-			if !ok || !secureEqual(user, s.Cfg.AccessKey) || !secureEqual(pass, s.Cfg.SecretKey) {
+			adminUser, adminPass := s.adminCredentials()
+			if ok && secureEqual(user, adminUser) && secureEqual(pass, adminPass) {
+				setPrincipal(r, auth.Principal{ID: adminUser, Role: "admin"})
+			} else if strings.HasPrefix(path, "/api/") && (strings.HasPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 ") || r.URL.Query().Has("X-Amz-Algorithm")) {
+				if !s.requireAuth(w, r) {
+					return
+				}
+			} else {
 				w.Header().Set("WWW-Authenticate", `Basic realm="Kladovka", charset="UTF-8"`)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return

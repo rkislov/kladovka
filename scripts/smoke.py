@@ -11,12 +11,14 @@ import socket
 import subprocess
 import tempfile
 import time
+import urllib.error
 import urllib.request
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', default='./bin/kladovka')
+    parser.add_argument('--access-policy', action='store_true', help='test separate admin and per-user S3 keys')
     args = parser.parse_args()
     binary = str(Path(args.binary).resolve())
     if not shutil.which('aws'):
@@ -27,12 +29,12 @@ def main():
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
         endpoint = f'http://127.0.0.1:{port}'
-        env = {**{key: value for key, value in os.environ.items() if not key.startswith('AWS_')}, 'AWS_ACCESS_KEY_ID': 'smoke', 'AWS_SECRET_ACCESS_KEY': 'smoke-secret',
+        env = {**{key: value for key, value in os.environ.items() if not key.startswith('AWS_')}, 'AWS_ACCESS_KEY_ID': 'smoke', 'AWS_SECRET_ACCESS_KEY': 'smoke-secret-for-tests',
                'AWS_DEFAULT_REGION': 'us-east-1', 'AWS_CONFIG_FILE': str(root/'aws-config'),
                'AWS_SHARED_CREDENTIALS_FILE': str(root/'aws-credentials'), 'AWS_EC2_METADATA_DISABLED': 'true',
                'AWS_REQUEST_CHECKSUM_CALCULATION': 'when_required', 'AWS_RESPONSE_CHECKSUM_VALIDATION': 'when_required',
-               'AWS_PAGER': '', 'LISTEN_ADDR': f'127.0.0.1:{port}', 'NODE_URL': endpoint, 'NODE_ID': 'smoke',
-               'ACCESS_KEY': 'smoke', 'SECRET_KEY': 'smoke-secret', 'REGION': 'us-east-1',
+               'ACCESS_POLICY_FILE': '', 'ADMIN_USER': '', 'ADMIN_PASSWORD': '', 'AWS_PAGER': '', 'LISTEN_ADDR': f'127.0.0.1:{port}', 'NODE_URL': endpoint, 'NODE_ID': 'smoke',
+               'ACCESS_KEY': 'smoke', 'SECRET_KEY': 'smoke-secret-for-tests', 'REGION': 'us-east-1',
                'PEER_NODES': '', 'REPLICATION_FACTOR': '1', 'CLUSTER_TOKEN': 'smoke-cluster-token',
                'HEALTH_INTERVAL_SEC': '1', 'TLS_MIN_VERSION': '1.2', 'CLUSTER_VERIFY_TLS': 'true',
                'TLS_CERT_FILE': '', 'TLS_KEY_FILE': '', 'MIN_FREE_DISK_BYTES': '0',
@@ -40,7 +42,17 @@ def main():
                'STORAGE_QUOTA_BYTES': str(64 << 20), 'MAX_CONCURRENT_UPLOADS': '4',
                'VERIFY_OBJECT_CHECKSUM': 'true', 'MULTIPART_TTL_SEC': '86400', 'CLEANUP_INTERVAL_SEC': '600'}
         (root/'aws-config').write_text('[default]\nregion = us-east-1\ns3 =\n    addressing_style = path\n    signature_version = s3v4\n')
-        auth = 'Basic ' + base64.b64encode(b'smoke:smoke-secret').decode()
+        auth = 'Basic ' + base64.b64encode(b'smoke:smoke-secret-for-tests').decode()
+        if args.access_policy:
+            policy_path = root/'access.json'
+            policy = {'version': 1, 'users': [
+                {'id': 'automation', 'role': 'admin', 'keys': [{'access_key': 'smoke', 'secret_key': 'smoke-secret-for-tests'}]},
+                {'id': 'reader', 'role': 'reader', 'polki': ['documents'], 'keys': [{'access_key': 'read', 'secret_key': 'reader-secret-for-tests'}]},
+            ]}
+            policy_path.write_text(json.dumps(policy))
+            policy_path.chmod(0o600)
+            env.update(ACCESS_POLICY_FILE=str(policy_path), ADMIN_USER='operator', ADMIN_PASSWORD='operator-password-tests')
+            auth = 'Basic ' + base64.b64encode(b'operator:operator-password-tests').decode()
         process = None
         log = (root/'server.log').open('w')
 
@@ -71,8 +83,8 @@ def main():
                     raise RuntimeError('graceful shutdown timed out')
                 process = None
 
-        def aws(*arguments):
-            result = subprocess.run(['aws', '--endpoint-url', endpoint, *arguments], env=env,
+        def aws(*arguments, credentials=None):
+            result = subprocess.run(['aws', '--endpoint-url', endpoint, *arguments], env={**env, **(credentials or {})},
                                     capture_output=True, text=True, timeout=90)
             if result.returncode:
                 raise RuntimeError(f'AWS {arguments[:2]} failed: {result.stderr}')
@@ -101,6 +113,23 @@ def main():
             assert 'Обзор хранилища'.encode() in request('/ui/')
             assert len(request('/ui/app.css')) > 10000
             assert json.loads(request('/api/stats'))['objects_count'] == 2
+            if args.access_policy:
+                reader = {'AWS_ACCESS_KEY_ID': 'read', 'AWS_SECRET_ACCESS_KEY': 'reader-secret-for-tests'}
+                reader_url = aws('s3', 'presign', 's3://documents/nested/readme.txt', '--expires-in', '300', credentials=reader).strip()
+                with urllib.request.urlopen(reader_url, timeout=10) as response:
+                    assert response.read() == small.read_bytes()
+                policy['users'][1]['keys'] = []
+                replacement = root/'access.new'
+                replacement.write_text(json.dumps(policy))
+                replacement.chmod(0o600)
+                replacement.replace(policy_path)
+                try:
+                    urllib.request.urlopen(reader_url, timeout=10)
+                except urllib.error.HTTPError as error:
+                    assert error.code == 403
+                else:
+                    raise AssertionError('revoked presigned URL was accepted')
+                print('PASS separate admin credentials, reader presigned GET, live key revocation')
             print('PASS AWS CLI: bucket, PUT, automatic multipart, LIST, Range, presigned GET, UI, stats')
             stop()
             shutil.copytree(root/'data', root/'backup')
