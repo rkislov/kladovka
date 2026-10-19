@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
@@ -29,11 +30,15 @@ import (
 
 // Server wires storage, auth and cluster into HTTP handlers.
 type Server struct {
-	Cfg   *config.Config
-	Store *storage.Store
-	Auth  *auth.Authenticator
-	Rep   *cluster.Replicator
-	Reg   *cluster.Registry
+	Cfg         *config.Config
+	Store       *storage.Store
+	Auth        *auth.Authenticator
+	Rep         *cluster.Replicator
+	Reg         *cluster.Registry
+	uploadOnce  sync.Once
+	uploadSlots chan struct{}
+	tempMu      sync.Mutex
+	tempBytes   int64
 }
 
 // Handler returns the root mux with Prometheus metrics middleware.
@@ -55,7 +60,7 @@ func (s *Server) Handler() http.Handler {
 		http.Redirect(w, r, "/ui/", http.StatusFound)
 	})
 	mux.HandleFunc("/", s.handleS3)
-	return metrics.Middleware(s.protect(mux))
+	return metrics.Middleware(s.protect(s.limitUploads(mux)))
 }
 
 func (s *Server) refreshMetrics() {
@@ -184,6 +189,11 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		objects += st.Objects
 		objectBytes += st.Bytes
 	}
+	quotaUsed, quotaTotal, err := s.Store.QuotaUsage()
+	if err != nil {
+		http.Error(w, "could not inspect storage quota", http.StatusInternalServerError)
+		return
+	}
 	snap := metrics.Collect()
 	nodes := s.Reg.Snapshot()
 	healthy := 0
@@ -194,6 +204,8 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
+		"quota":              map[string]int64{"used_bytes": quotaUsed, "total_bytes": quotaTotal},
+		"limits":             map[string]int64{"max_object_size": s.Cfg.MaxObjectSize, "max_temp_bytes": s.Cfg.MaxTempBytes},
 		"node_id":            s.Cfg.NodeID,
 		"replication_factor": s.Cfg.ReplicationFactor,
 		"nodes_total":        len(nodes),
@@ -260,11 +272,7 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 		ct := r.Header.Get("Content-Type")
 		body, _, err := s.spoolBody(r, false)
 		if err != nil {
-			status := http.StatusBadRequest
-			if errors.Is(err, errTooLarge) {
-				status = http.StatusRequestEntityTooLarge
-			}
-			http.Error(w, err.Error(), status)
+			s.spoolFailure(w, r, err)
 			return
 		}
 		defer removeSpool(body)
@@ -272,18 +280,12 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 		if !exists {
 			_ = s.Store.CreatePolka(polka)
 		}
-		meta, err := s.Store.PutObject(polka, key, body, ct)
+		meta, err := s.Store.PutObjectWithETag(polka, key, body, ct, r.Header.Get("X-Kladovka-ETag"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if etag := r.Header.Get("X-Kladovka-ETag"); etag != "" {
-			if err := s.Store.SetETag(polka, key, etag); err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			meta.ETag = etag
-		}
+
 		w.Header().Set("ETag", meta.ETag)
 		w.WriteHeader(http.StatusOK)
 	case http.MethodGet, http.MethodHead:
@@ -486,11 +488,7 @@ func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key st
 	}
 	body, size, err := s.spoolBody(r, true)
 	if err != nil {
-		status, code := http.StatusBadRequest, "InvalidRequest"
-		if errors.Is(err, errTooLarge) {
-			status, code = http.StatusRequestEntityTooLarge, "EntityTooLarge"
-		}
-		writeS3Error(w, status, code, err.Error(), r.URL.Path)
+		s.spoolFailure(w, r, err)
 		return
 	}
 	defer removeSpool(body)

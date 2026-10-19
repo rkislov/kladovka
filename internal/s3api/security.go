@@ -65,7 +65,7 @@ func (s *Server) spoolBody(r *http.Request, verify bool) (*os.File, int64, error
 	if s.Cfg.MaxObjectSize > 0 && r.ContentLength > s.Cfg.MaxObjectSize {
 		return nil, 0, errTooLarge
 	}
-	f, err := os.CreateTemp("", "kladovka-upload-*")
+	f, err := os.CreateTemp(s.Store.UploadDir(), "upload-*.tmp")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -75,7 +75,7 @@ func (s *Server) spoolBody(r *http.Request, verify bool) (*os.File, int64, error
 	if s.Cfg.MaxObjectSize > 0 {
 		src = io.LimitReader(src, s.Cfg.MaxObjectSize+1)
 	}
-	n, err := io.Copy(io.MultiWriter(f, hash), src)
+	n, err := io.Copy(&tempBudgetWriter{server: s, request: r, dst: io.MultiWriter(f, hash)}, src)
 	if err != nil {
 		return fail(err)
 	}

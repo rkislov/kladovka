@@ -6,3 +6,5 @@
 package storage
 
 func diskUsage(root string) (uint64, uint64, error) { return 0, 0, nil }
+
+func diskFree(root string) (uint64, error) { return ^uint64(0), nil }

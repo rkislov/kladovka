@@ -21,6 +21,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build:css
+      - run: git diff --exit-code -- internal/webui/static/app.css
+
       - name: Test
         run: |
           go test -race ./...

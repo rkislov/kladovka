@@ -12,4 +12,17 @@ jobs:
           go-version-file: go.mod
       - run: go test -race ./...
       - run: go vet ./...
-      - run: go build ./cmd/kladovka
+      - run: make build
+      - name: AWS CLI and backup/restore integration
+        run: python3 scripts/smoke.py --binary ./bin/kladovka
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build:css
+      - run: git diff --exit-code -- internal/webui/static/app.css

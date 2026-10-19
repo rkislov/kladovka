@@ -51,6 +51,12 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 	uploadID := q.Get("uploadId")
 	partNumber := q.Get("partNumber")
 	if uploadID != "" {
+		release, err := s.Store.PinMultipart(uploadID)
+		if err != nil {
+			writeS3Error(w, http.StatusNotFound, "NoSuchUpload", err.Error(), r.URL.Path)
+			return true
+		}
+		defer release()
 		if err := s.Store.ValidateMultipartTarget(uploadID, polka, key); err != nil {
 			writeS3Error(w, http.StatusNotFound, "NoSuchUpload", err.Error(), r.URL.Path)
 			return true
@@ -113,7 +119,11 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 					writeS3Error(w, http.StatusNotFound, "NoSuchUpload", err.Error(), r.URL.Path)
 					return true
 				}
-				writeS3Error(w, http.StatusBadRequest, "InvalidRequest", err.Error(), r.URL.Path)
+				status, code, msg := mapStorageErr(err)
+				if status == http.StatusInternalServerError && !errors.Is(err, storage.ErrIntegrity) {
+					status, code, msg = http.StatusBadRequest, "InvalidRequest", err.Error()
+				}
+				writeS3Error(w, status, code, msg, r.URL.Path)
 				return true
 			}
 			if s.Cfg.ReplicationFactor > 1 {
@@ -154,13 +164,7 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 			}
 			body, _, err := s.spoolBody(r, true)
 			if err != nil {
-				status := http.StatusBadRequest
-				code := "InvalidRequest"
-				if errors.Is(err, errTooLarge) {
-					status = http.StatusRequestEntityTooLarge
-					code = "EntityTooLarge"
-				}
-				writeS3Error(w, status, code, err.Error(), r.URL.Path)
+				s.spoolFailure(w, r, err)
 				return true
 			}
 			defer removeSpool(body)

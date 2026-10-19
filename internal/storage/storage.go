@@ -11,7 +11,7 @@
 package storage
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -40,6 +40,7 @@ type ObjectMeta struct {
 	ETag         string    `json:"etag"`
 	ContentType  string    `json:"content_type"`
 	LastModified time.Time `json:"last_modified"`
+	SHA256       string    `json:"sha256,omitempty"`
 }
 
 // Store is a filesystem-backed object store. Polka = S3 bucket directory.
@@ -47,16 +48,14 @@ type Store struct {
 	root        string
 	mu          sync.RWMutex
 	multipartMu sync.Mutex
+	options     Options
+	active      map[string]int
+	pending     map[string]bool
+	afterStep   func(string) error
 }
 
 // New creates a store under root and ensures the directory exists.
-func New(root string) (*Store, error) {
-	root = filepath.Clean(root)
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, err
-	}
-	return &Store{root: root}, nil
-}
+func New(root string) (*Store, error) { return NewWithOptions(root, Options{VerifyReads: true}) }
 
 func (s *Store) polkaPath(name string) (string, error) {
 	name = strings.TrimSpace(name)
@@ -100,7 +99,7 @@ func (s *Store) CreatePolka(name string) error {
 	if _, err := os.Stat(pp); err == nil {
 		return ErrPolkaExists
 	}
-	return os.MkdirAll(pp, 0o755)
+	return durableMkdir(pp, s.root)
 }
 
 // DeletePolka removes an empty shelf.
@@ -121,7 +120,10 @@ func (s *Store) DeletePolka(name string) error {
 	if len(entries) > 0 {
 		return ErrPolkaNotEmpty
 	}
-	return os.Remove(pp)
+	if err := os.Remove(pp); err != nil {
+		return err
+	}
+	return syncDir(s.root)
 }
 
 // PolkaExists reports whether the shelf exists.
@@ -160,83 +162,19 @@ func (s *Store) ListPolki() ([]string, error) {
 
 // PutObject writes object body to a shelf.
 func (s *Store) PutObject(polka, key string, body io.Reader, contentType string) (*ObjectMeta, error) {
+	return s.PutObjectWithETag(polka, key, body, contentType, "")
+}
+func (s *Store) PutObjectWithETag(polka, key string, body io.Reader, contentType, etag string) (*ObjectMeta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ok, err := s.PolkaExists(polka)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, ErrPolkaNotFound
-	}
-	op, err := s.objectPath(polka, key)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(filepath.Dir(op), 0o755); err != nil {
-		return nil, err
-	}
-
-	f, err := os.CreateTemp(filepath.Dir(op), ".kladovka-*.tmp")
-	if err != nil {
-		return nil, err
-	}
-	tmp := f.Name()
-	h := md5.New()
-	n, err := io.Copy(io.MultiWriter(f, h), body)
-	if err == nil {
-		err = f.Sync()
-	}
-	if cerr := f.Close(); cerr != nil && err == nil {
-		err = cerr
-	}
-	if err != nil {
-		_ = os.Remove(tmp)
-		return nil, err
-	}
-	if err := os.Rename(tmp, op); err != nil {
-		_ = os.Remove(tmp)
-		return nil, err
-	}
-	etag := `"` + hex.EncodeToString(h.Sum(nil)) + `"`
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	meta := &ObjectMeta{
-		Key:          key,
-		Size:         n,
-		ETag:         etag,
-		ContentType:  contentType,
-		LastModified: time.Now().UTC(),
-	}
-	if err := s.writeSideMeta(op, meta); err != nil {
-		return nil, err
-	}
-	return meta, nil
+	return s.putLocked(polka, key, body, contentType, etag)
 }
-
-func (s *Store) writeSideMeta(objectPath string, meta *ObjectMeta) error {
+func (s *Store) writeSideMeta(path string, meta *ObjectMeta) error {
 	b, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(objectPath), ".kladovka-meta-*.tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	if _, err = f.Write(b); err != nil {
-		f.Close()
-		return err
-	}
-	if err = f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), objectPath+".kladovka-meta.json")
+	return writeAtomic(path+".kladovka-meta.json", b)
 }
 
 func (s *Store) readSideMeta(objectPath string) (*ObjectMeta, error) {
@@ -253,38 +191,51 @@ func (s *Store) readSideMeta(objectPath string) (*ObjectMeta, error) {
 
 // GetObject opens an object for reading.
 func (s *Store) GetObject(polka, key string) (io.ReadCloser, *ObjectMeta, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.pending[polka+"/"+key] {
+		return nil, nil, ErrPendingWrite
+	}
 	op, err := s.objectPath(polka, key)
 	if err != nil {
 		return nil, nil, err
 	}
-	st, err := os.Stat(op)
+	f, err := os.Open(op)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil, ErrObjectNotFound
 	}
 	if err != nil {
 		return nil, nil, err
 	}
-	f, err := os.Open(op)
+	fail := func(err error) (io.ReadCloser, *ObjectMeta, error) { f.Close(); return nil, nil, err }
+	st, err := f.Stat()
 	if err != nil {
-		return nil, nil, err
+		return fail(err)
+	}
+	if st.IsDir() {
+		return fail(ErrObjectNotFound)
 	}
 	meta, err := s.readSideMeta(op)
-	if err != nil {
-		// Fall back to filesystem stats.
-		h := md5.New()
-		_, _ = io.Copy(h, f)
-		_, _ = f.Seek(0, io.SeekStart)
-		meta = &ObjectMeta{
-			Key:          key,
-			Size:         st.Size(),
-			ETag:         `"` + hex.EncodeToString(h.Sum(nil)) + `"`,
-			ContentType:  "application/octet-stream",
-			LastModified: st.ModTime().UTC(),
-		}
-	} else {
-		meta.Size = st.Size()
-		meta.LastModified = st.ModTime().UTC()
+	if err != nil || meta == nil || meta.Key != key || meta.Size != st.Size() || len(meta.SHA256) != 64 {
+		return fail(fmt.Errorf("%w: missing or invalid metadata", ErrIntegrity))
 	}
+	if _, err = hex.DecodeString(meta.SHA256); err != nil {
+		return fail(ErrIntegrity)
+	}
+	if s.options.VerifyReads {
+		hash := sha256.New()
+		if _, err = io.Copy(hash, f); err != nil {
+			return fail(err)
+		}
+		if hex.EncodeToString(hash.Sum(nil)) != meta.SHA256 {
+			return fail(ErrIntegrity)
+		}
+		if _, err = f.Seek(0, io.SeekStart); err != nil {
+			return fail(err)
+		}
+	}
+	meta.Size = st.Size()
+	meta.Key = key
 	return f, meta, nil
 }
 
@@ -302,28 +253,16 @@ func (s *Store) HeadObject(polka, key string) (*ObjectMeta, error) {
 func (s *Store) DeleteObject(polka, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	op, err := s.objectPath(polka, key)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(op); errors.Is(err, os.ErrNotExist) {
-		return ErrObjectNotFound
-	}
-	_ = os.Remove(op + ".kladovka-meta.json")
-	if err := os.Remove(op); err != nil {
-		return err
-	}
-	pp, _ := s.polkaPath(polka)
-	for dir := filepath.Dir(op); dir != pp && dir != s.root && dir != "."; dir = filepath.Dir(dir) {
-		if err := os.Remove(dir); err != nil {
-			break
-		}
-	}
-	return nil
+	return s.deleteLocked(polka, key)
 }
 
 // ListObjects lists objects under a shelf with optional prefix (flat keys).
 func (s *Store) ListObjects(polka, prefix string, maxKeys int, startAfter string) ([]ObjectMeta, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.pending) > 0 {
+		return nil, false, ErrPendingWrite
+	}
 	if maxKeys <= 0 {
 		maxKeys = 1000
 	}
@@ -395,6 +334,8 @@ type PolkaStats struct {
 
 // StatsForPolka counts objects and bytes on a shelf (skips meta/tmp files).
 func (s *Store) StatsForPolka(polka string) (PolkaStats, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	st := PolkaStats{Name: polka}
 	ok, err := s.PolkaExists(polka)
 	if err != nil {
