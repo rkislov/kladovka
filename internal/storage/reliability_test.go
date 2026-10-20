@@ -27,6 +27,9 @@ func TestCrashWriterProcess(t *testing.T) {
 	if err != nil {
 		os.Exit(90)
 	}
+	if _, _, err := s.ListObjects("demo", "", 1000, ""); err != nil {
+		t.Fatal(err)
+	}
 	s.afterStep = func(step string) error {
 		if step == os.Getenv("KLADOVKA_CRASH_TEST_STEP") {
 			os.Exit(91)
@@ -78,6 +81,19 @@ func TestRecoverAfterWriterCrash(t *testing.T) {
 					sum := sha256.Sum256(b)
 					if string(b) != "new durable value" || meta.SHA256 != hex.EncodeToString(sum[:]) {
 						t.Fatalf("invalid recovered pair: %q %+v", b, meta)
+					}
+				}
+				listed, _, listErr := restored.ListObjects("demo", "", 1000, "")
+				if listErr != nil {
+					t.Fatal(listErr)
+				}
+				if mode == "delete" {
+					if len(listed) != 0 {
+						t.Fatal("deleted key resurrected in catalogue", listed)
+					}
+				} else {
+					if len(listed) != 1 || listed[0].SHA256 != meta.SHA256 || listed[0].Size != int64(len("new durable value")) {
+						t.Fatal("recovered catalogue differs", listed)
 					}
 				}
 				pending, _ := os.ReadDir(restored.transactionRoot())

@@ -55,43 +55,15 @@ func decodeListingCursor(token, bucket, prefix, delimiter string) (string, bool)
 	return c.After, true
 }
 
-// Objects arrive in UTF-8 byte order from one backend listing. Collapse groups
-// before applying the cursor: StartAfter inside a group must exclude that group.
-func groupedListing(objects []storage.ObjectMeta, prefix, delimiter, after string, limit int) (listBucketResult, string) {
-	result := listBucketResult{}
-	if limit == 0 {
-		return result, ""
+func listPageXML(page storage.ObjectPage) (listBucketResult, string) {
+	result := listBucketResult{IsTruncated: page.Truncated}
+	for _, obj := range page.Objects {
+		result.Contents = append(result.Contents, objectEntry{Key: obj.Key, LastModified: s3Time(obj.LastModified), ETag: obj.ETag, Size: obj.Size, StorageClass: "STANDARD"})
 	}
-	count, last, previousGroup := 0, "", ""
-	for _, obj := range objects {
-		name, group := obj.Key, false
-		if delimiter != "" {
-			if at := strings.Index(strings.TrimPrefix(name, prefix), delimiter); at >= 0 {
-				name, group = name[:len(prefix)+at+len(delimiter)], true
-			}
-		}
-		if group {
-			if name == previousGroup {
-				continue
-			}
-			previousGroup = name
-		}
-		if name <= after {
-			continue
-		}
-		if count == limit {
-			result.IsTruncated = true
-			break
-		}
-		if group {
-			result.CommonPrefixes = append(result.CommonPrefixes, commonPrefix{name})
-		} else {
-			result.Contents = append(result.Contents, objectEntry{Key: obj.Key, LastModified: s3Time(obj.LastModified), ETag: obj.ETag, Size: obj.Size, StorageClass: "STANDARD"})
-		}
-		count++
-		last = name
+	for _, prefix := range page.Prefixes {
+		result.CommonPrefixes = append(result.CommonPrefixes, commonPrefix{prefix})
 	}
-	return result, last
+	return result, page.Next
 }
 
 func (s *Server) listObjects(w http.ResponseWriter, r *http.Request, bucket string) {
@@ -151,15 +123,13 @@ func (s *Server) listObjects(w http.ResponseWriter, r *http.Request, bucket stri
 			return
 		}
 	}
-	// Both backends currently materialize and sort the matching catalogue. Read it
-	// once per request rather than repeatedly walking it to fill grouped pages.
-	objects, _, err := s.Store.ListObjects(bucket, prefix, int(^uint(0)>>1), "")
+	page, err := s.Store.ListObjectPage(bucket, prefix, delimiter, after, limit)
 	if err != nil {
 		status, code, message := mapStorageErr(err)
 		writeS3Error(w, status, code, message, r.URL.Path)
 		return
 	}
-	result, last := groupedListing(objects, prefix, delimiter, after, limit)
+	result, last := listPageXML(page)
 	result.Xmlns = "http://s3.amazonaws.com/doc/2006-03-01/"
 	result.Name, result.Prefix, result.Delimiter, result.MaxKeys = bucket, prefix, delimiter, limit
 	result.EncodingType = encoding
