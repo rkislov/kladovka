@@ -80,6 +80,9 @@ func allowedRequest(p auth.Principal, r *http.Request) bool {
 	default:
 		shelf, _, object = splitPolkaKey(path)
 	}
+	if r.Method == http.MethodPost && r.URL.Query().Has("delete") && !object && !strings.HasPrefix(path, "/api/") {
+		return p.CanWrite(shelf)
+	}
 	// Shelf creation/deletion is admin-only. Multipart metadata belongs to writers.
 	if read && !r.URL.Query().Has("uploadId") && !r.URL.Query().Has("uploads") {
 		return p.CanRead(shelf)
