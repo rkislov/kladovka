@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0
 
 APP=kladovka
-VERSION?=0.4.0-dev
+VERSION?=0.4.0
 COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 LDFLAGS=-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 DIST=dist
@@ -41,6 +41,7 @@ release: clean
 	cp $(DIST)/$(APP)-$(VERSION)-linux-arm64 $(DIST)/$(APP)-$(VERSION)-raspberrypi-64bit
 	cp $(DIST)/$(APP)-$(VERSION)-linux-armv7 $(DIST)/$(APP)-$(VERSION)-raspberrypi-32bit
 	tar -czf $(DIST)/$(APP)-$(VERSION)-third-party-notices.tar.gz NOTICE THIRD_PARTY_NOTICES.md third_party/go-licenses
+	tar -czf $(DIST)/$(APP)-$(VERSION)-documentation.tar.gz README.md docs/USER.md docs/ADMIN.md docs/CONSENSUS.md docs/STATUS.md monitoring
 	$(MAKE) checksums
 
 checksums:
