@@ -126,7 +126,7 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 				writeS3Error(w, status, code, msg, r.URL.Path)
 				return true
 			}
-			if s.Cfg.ReplicationFactor > 1 {
+			if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 				rc, _, e := s.Store.GetObject(polka, key)
 				if e == nil {
 					e = s.Rep.ReplicatePut(r.Context(), polka, key, rc.(io.ReadSeeker), meta.ContentType, meta.ETag)

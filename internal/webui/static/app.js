@@ -41,6 +41,9 @@ function objectURL(name, key) {
 }
 function renderStats(j) {
   const m = j.metrics || {};
+  const consensus = j.consensus || {}, sharedCatalog = consensus.mode === 'consensus';
+  $('catalog-scope').textContent = sharedCatalog ? 'Каталог кластера' : 'На этом узле';
+  $('storage-scope').textContent = sharedCatalog ? 'Каталог — весь кластер; диск и счётчики — обслуживший запрос узел.' : 'Статистика и списки относятся к текущему узлу.';
   limits = j.limits || {};
   const quota = j.quota || {};
   $('quota-status').hidden = !quota.total_bytes;
@@ -49,7 +52,7 @@ function renderStats(j) {
     ['Полки', j.polki_count, 'Для ваших файлов', 'sec-polki'],
     ['Объекты', j.objects_count, 'В локальном хранилище', 'sec-polki'],
     ['Объём файлов', bytes(j.objects_bytes), 'Без служебных данных', 'sec-polki'],
-    ['Доступные узлы', j.nodes_healthy + ' / ' + j.nodes_total, 'Копий объекта: ' + j.replication_factor, 'sec-nodes'],
+    ['Доступные узлы', j.nodes_healthy + ' / ' + j.nodes_total, (sharedCatalog ? 'Целевых копий: ' : 'Копий объекта: ') + j.replication_factor, 'sec-nodes'],
   ];
   $('stats').innerHTML = cards.map(([label, value, hint, go]) => `<button class="stat" data-go="${go}"><span class="label">${esc(label)}</span><span class="value">${esc(value)}</span><span class="hint">${esc(hint)}</span></button>`).join('');
   $('stats').querySelectorAll('button').forEach(b => b.onclick = () => $(b.dataset.go).scrollIntoView({ behavior: 'smooth' }));
@@ -63,7 +66,7 @@ function renderStats(j) {
   $('disklabel').textContent = total ? `${bytes(used)} из ${bytes(total)} · свободно ${bytes(Math.max(0, total - used))}` : 'Ёмкость файловой системы неизвестна';
   $('activity').innerHTML = [ ['Загружено', bytes(m.bytes_uploaded_total)], ['Скачано', bytes(m.bytes_downloaded_total)], ['S3-операции', m.s3_operations_total], ['HTTP-запросы', m.http_requests_total] ].map(([name, value]) => `<div><p class="text-xs text-slate-500">${esc(name)}</p><p class="mt-2 text-lg font-semibold text-slate-800">${esc(value)}</p></div>`).join('');
   $('uptime').textContent = uptime(m.uptime_seconds);
-  $('ops').innerHTML = Object.entries(m.s3_by_operation || {}).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join('') + `<span class="chip">Репликация: успешно ${esc(m.replication_ok_total || 0)}, ошибок ${esc(m.replication_failed_total || 0)}</span>`;
+  $('ops').innerHTML = Object.entries(m.s3_by_operation || {}).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join('') + (sharedCatalog ? `<span class="chip">Кворум записи: ${esc(consensus.quorum)} из ${esc(consensus.voters)}</span><span class="chip">Локальное восстановление: ${esc(consensus.repair_pending || 0)}</span>${consensus.repair_error ? '<span class="chip">Ошибка восстановления: ' + esc(consensus.repair_error) + '</span>' : ''}` : `<span class="chip">Репликация: успешно ${esc(m.replication_ok_total || 0)}, ошибок ${esc(m.replication_failed_total || 0)}</span>`);
   $('updated').textContent = 'Обновлено ' + new Date().toLocaleTimeString();
 }
 function renderPolki(force = false) {
@@ -135,7 +138,7 @@ async function openDetail(detail, name) {
   await page();
 }
 function renderNodes(j) {
-  $('nodes-count').textContent = 'Этот узел: ' + j.node_id + ' · копий: ' + j.replication_factor;
+  $('nodes-count').textContent = (j.consensus?.mode === 'consensus' ? 'Данные узла: ' : 'Этот узел: ') + j.node_id + ' · копий: ' + j.replication_factor;
   $('node-health').textContent = j.nodes_healthy + ' / ' + j.nodes_total;
   $('nodes').innerHTML = (j.nodes || []).map(n => `<button class="node" data-url="${esc(n.url)}"><span class="flex items-center justify-between gap-2"><strong class="truncate text-xs font-semibold text-slate-700">${esc(n.node_id)}</strong><span class="pill ${n.healthy ? 'ok' : 'bad'}">${n.healthy ? 'В сети' : 'Нет связи'}</span></span><span class="mt-2 block break-all text-xs text-slate-500">${esc(n.url)}</span>${n.last_error ? '<span class="mt-1 block break-all text-xs text-red-600">' + esc(n.last_error) + '</span>' : ''}</button>`).join('');
   $('nodes').querySelectorAll('button').forEach(button => button.onclick = () => {

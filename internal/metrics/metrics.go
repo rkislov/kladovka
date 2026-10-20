@@ -25,21 +25,36 @@ var (
 	httpDurationSum sync.Map // key "method|path" -> *atomic.Uint64 (microseconds)
 	httpDurationCnt sync.Map
 
-	s3Ops      sync.Map // operation|polka -> *atomic.Uint64
-	bytesUp    sync.Map // polka -> *atomic.Uint64
-	bytesDown  sync.Map
-	storageUsed atomic.Uint64
+	s3Ops        sync.Map // operation|polka -> *atomic.Uint64
+	bytesUp      sync.Map // polka -> *atomic.Uint64
+	bytesDown    sync.Map
+	storageUsed  atomic.Uint64
 	storageTotal atomic.Uint64
 
 	clusterHealthy sync.Map // node_id -> *atomic.Uint64 (0/1)
 	clusterUsed    sync.Map // node_id -> *atomic.Uint64
 
-	replPublished atomic.Uint64
-	replFailed    atomic.Uint64
-	replOK        atomic.Uint64
+	consensusGauges sync.Map
+	replPublished   atomic.Uint64
+	replFailed      atomic.Uint64
+	replOK          atomic.Uint64
 
 	startTime = time.Now()
 )
+
+func UpdateConsensus(enabled, leader bool, index uint64, pending, quorum int) {
+	flag := func(b bool) uint64 {
+		if b {
+			return 1
+		}
+		return 0
+	}
+	values := map[string]uint64{"enabled": flag(enabled), "leader": flag(leader), "applied_index": index, "repair_pending": uint64(pending), "quorum_required": uint64(quorum)}
+	for name, value := range values {
+		v, _ := consensusGauges.LoadOrStore(name, &atomic.Uint64{})
+		v.(*atomic.Uint64).Store(value)
+	}
+}
 
 func counterInc(m *sync.Map, key string, delta uint64) {
 	v, _ := m.LoadOrStore(key, &atomic.Uint64{})
@@ -181,18 +196,18 @@ func (s *statusRecorder) WriteHeader(code int) {
 
 // Snapshot is a JSON-friendly view of live counters for the dashboard.
 type Snapshot struct {
-	UptimeSeconds      float64            `json:"uptime_seconds"`
-	HTTPRequestsTotal  uint64             `json:"http_requests_total"`
-	S3OperationsTotal  uint64             `json:"s3_operations_total"`
-	BytesUploaded      uint64             `json:"bytes_uploaded_total"`
-	BytesDownloaded    uint64             `json:"bytes_downloaded_total"`
-	StorageUsedBytes   uint64             `json:"storage_used_bytes"`
-	StorageTotalBytes  uint64             `json:"storage_total_bytes"`
-	ReplicationPublished uint64           `json:"replication_published_total"`
-	ReplicationOK      uint64             `json:"replication_ok_total"`
-	ReplicationFailed  uint64             `json:"replication_failed_total"`
-	S3ByOperation      map[string]uint64  `json:"s3_by_operation"`
-	HTTPByStatus       map[string]uint64  `json:"http_by_status"`
+	UptimeSeconds        float64           `json:"uptime_seconds"`
+	HTTPRequestsTotal    uint64            `json:"http_requests_total"`
+	S3OperationsTotal    uint64            `json:"s3_operations_total"`
+	BytesUploaded        uint64            `json:"bytes_uploaded_total"`
+	BytesDownloaded      uint64            `json:"bytes_downloaded_total"`
+	StorageUsedBytes     uint64            `json:"storage_used_bytes"`
+	StorageTotalBytes    uint64            `json:"storage_total_bytes"`
+	ReplicationPublished uint64            `json:"replication_published_total"`
+	ReplicationOK        uint64            `json:"replication_ok_total"`
+	ReplicationFailed    uint64            `json:"replication_failed_total"`
+	S3ByOperation        map[string]uint64 `json:"s3_by_operation"`
+	HTTPByStatus         map[string]uint64 `json:"http_by_status"`
 }
 
 // Collect builds a Snapshot from in-memory metrics.
@@ -302,6 +317,11 @@ func Handler(refresh func()) http.Handler {
 		writeHelpType(&b, "kladovka_replication_failed_total", "counter", "Failed replication copies")
 		fmt.Fprintf(&b, "kladovka_replication_failed_total %d\n", replFailed.Load())
 
+		forEachCounter(&consensusGauges, func(name string, value uint64) {
+			metric := "kladovka_consensus_" + name
+			writeHelpType(&b, metric, "gauge", "Local consensus observation (not a readiness guarantee)")
+			fmt.Fprintf(&b, "%s %d\n", metric, value)
+		})
 		_, _ = w.Write([]byte(b.String()))
 	})
 }

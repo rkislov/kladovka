@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/rkislov/kladovka/internal/audit"
@@ -26,6 +27,7 @@ import (
 	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
 	"github.com/rkislov/kladovka/internal/config"
+	"github.com/rkislov/kladovka/internal/consensus"
 	"github.com/rkislov/kladovka/internal/httpserver"
 	"github.com/rkislov/kladovka/internal/s3api"
 	"github.com/rkislov/kladovka/internal/storage"
@@ -56,6 +58,14 @@ func main() {
 	if cfg.AccessPolicyFile != "" {
 		if _, err := auth.LoadPolicy(cfg.AccessPolicyFile); err != nil {
 			log.Fatalf("access policy: %v", err)
+		}
+	}
+
+	if cfg.ClusterMode != "consensus" {
+		for _, name := range []string{".consensus", ".kladovka-consensus"} {
+			if _, e := os.Lstat(filepath.Join(cfg.DataRoot, name)); !errors.Is(e, os.ErrNotExist) {
+				log.Fatal("DATA_ROOT belongs to consensus or cannot be checked; refusing legacy mode")
+			}
 		}
 	}
 
@@ -112,6 +122,15 @@ func main() {
 	}
 	if err := auditLog.Append(audit.Event{Node: cfg.NodeID, Kind: "admin_configuration", Actor: "local_configuration", Users: []audit.User{{ID: adminUser, Role: "admin"}}}); err != nil {
 		log.Fatalf("audit: %v", err)
+	}
+	if cfg.ClusterMode == "consensus" {
+		replicated, err := consensus.Open(cfg, store, reg)
+		if err != nil {
+			log.Fatalf("consensus: %v", err)
+		}
+		defer replicated.Close()
+		srv.Consensus = replicated
+		srv.Store = replicated
 	}
 	if cfg.AccessPolicyFile != "" {
 		policy, err := auth.LoadPolicy(cfg.AccessPolicyFile)

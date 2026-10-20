@@ -7,3 +7,6 @@ Licensed under the Apache License, Version 2.0.
 
 The embedded stylesheet is generated with Tailwind CSS (MIT).
 See THIRD_PARTY_NOTICES.md for its license.
+
+This product includes HashiCorp Raft, its BoltDB backend and their Go dependencies.
+See THIRD_PARTY_NOTICES.md and third_party/go-licenses for notices, licenses and source links.

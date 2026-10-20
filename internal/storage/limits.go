@@ -78,7 +78,7 @@ func (s *Store) logicalBytes() (int64, error) {
 			return err
 		}
 		if d.IsDir() {
-			if path == s.transactionRoot() || path == s.UploadDir() {
+			if path == s.transactionRoot() || path == s.UploadDir() || path == filepath.Join(s.root, ".consensus") {
 				return filepath.SkipDir
 			}
 			return nil
@@ -220,4 +220,28 @@ func (s *Store) QuotaUsage() (int64, int64, error) {
 	}
 	used, err := s.logicalBytes()
 	return used, s.options.QuotaBytes, err
+}
+
+// MultipartBytes counts retained parts independently of materialized objects.
+func (s *Store) MultipartBytes() (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var used int64
+	err := filepath.WalkDir(s.multipartRoot(), func(path string, d fs.DirEntry, err error) error {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasPrefix(d.Name(), "part-") && !strings.HasSuffix(d.Name(), ".tmp") {
+			info, e := d.Info()
+			if e != nil {
+				return e
+			}
+			used += info.Size()
+		}
+		return nil
+	})
+	return used, err
 }

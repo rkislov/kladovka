@@ -40,6 +40,7 @@ release: clean
 	# Convenience names for Raspberry Pi
 	cp $(DIST)/$(APP)-$(VERSION)-linux-arm64 $(DIST)/$(APP)-$(VERSION)-raspberrypi-64bit
 	cp $(DIST)/$(APP)-$(VERSION)-linux-armv7 $(DIST)/$(APP)-$(VERSION)-raspberrypi-32bit
+	tar -czf $(DIST)/$(APP)-$(VERSION)-third-party-notices.tar.gz NOTICE THIRD_PARTY_NOTICES.md third_party/go-licenses
 	$(MAKE) checksums
 
 checksums:
