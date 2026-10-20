@@ -357,6 +357,7 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 		defer rc.Close()
 		w.Header().Set("ETag", meta.ETag)
 		w.Header().Set("Content-Type", meta.ContentType)
+		w.Header().Set("X-Kladovka-Sha256", meta.SHA256)
 		w.Header().Set("Content-Length", strconv.FormatInt(meta.Size, 10))
 		w.Header().Set("Last-Modified", meta.LastModified.UTC().Format(http.TimeFormat))
 		if r.Method == http.MethodHead {
@@ -422,10 +423,6 @@ func (s *Server) handleS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("X-Amz-Copy-Source") != "" {
-		writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "CopyObject is not supported", r.URL.Path)
-		return
-	}
 	for _, q := range []string{"acl", "versioning", "versionId", "versions", "lifecycle", "policy", "cors", "tagging", "delete", "location", "notification", "restore"} {
 		if r.URL.Query().Has(q) {
 			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "unsupported S3 feature: "+q, r.URL.Path)
@@ -433,6 +430,12 @@ func (s *Server) handleS3(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/")
+	if len(r.Header.Values("X-Amz-Copy-Source")) > 0 {
+		if _, _, object := splitPolkaKey(path); !object {
+			writeS3Error(w, 400, "InvalidRequest", "copy destination must be an object", r.URL.Path)
+			return
+		}
+	}
 	if path == "" {
 		s.handleListPolki(w, r)
 		return
@@ -520,6 +523,10 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 }
 
 func (s *Server) handleObject(w http.ResponseWriter, r *http.Request, polka, key string) {
+	if len(r.Header.Values("X-Amz-Copy-Source")) > 0 {
+		s.copyObject(w, r, polka, key)
+		return
+	}
 	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId")) {
 		s.forwardToPrimary(w, r, polka, key)
 		return
