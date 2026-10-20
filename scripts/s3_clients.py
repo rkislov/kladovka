@@ -89,6 +89,31 @@ def run(endpoint, access_key, secret_key):
     listed = [obj['Key'] for page in pages for obj in page.get('Contents', [])]
     assert len(pages) == len(expected) and len(listed) == len(expected) and set(listed) == expected, pages
     assert {obj.object_name for obj in m.list_objects(bucket, recursive=True)} == expected
+    # Prefixes and objects share the same page budget, including prefix-only pages.
+    top_objects = {'empty', 'boto-multipart', 'minio-multipart'}
+    top_prefixes = {'literal/', 'nested/'}
+    for operation in ('list_objects_v2', 'list_objects'):
+        grouped = list(b.get_paginator(operation).paginate(
+            Bucket=bucket, Delimiter='/', PaginationConfig={'PageSize': 1}))
+        found_objects = [o['Key'] for page in grouped for o in page.get('Contents', [])]
+        found_prefixes = [p['Prefix'] for page in grouped for p in page.get('CommonPrefixes', [])]
+        assert len(grouped) == 5 and set(found_objects) == top_objects and set(found_prefixes) == top_prefixes, grouped
+        assert len(found_prefixes) == len(top_prefixes), grouped
+        if operation == 'list_objects_v2':
+            assert all(page['KeyCount'] == 1 for page in grouped), grouped
+    for use_v1 in (False, True):
+        grouped = list(m.list_objects(bucket, recursive=False, use_api_v1=use_v1))
+        assert {o.object_name for o in grouped if o.is_dir} == top_prefixes, grouped
+        assert {o.object_name for o in grouped if not o.is_dir} == top_objects, grouped
+    nested = b.list_objects_v2(Bucket=bucket, Prefix='literal/', Delimiter='/')
+    assert {o['Key'] for o in nested['Contents']} == {'literal/a%2Fb', 'literal/%25'}, nested
+    assert nested['CommonPrefixes'] == [{'Prefix': 'literal/a/'}], nested
+    nested_minio = list(m.list_objects(bucket, prefix='nested/', recursive=False))
+    assert [o.object_name for o in nested_minio] == [key], nested_minio
+    start = b.list_objects_v2(Bucket=bucket, Delimiter='/', StartAfter='literal/a')
+    assert start['CommonPrefixes'] == [{'Prefix': 'nested/'}], start
+    zero = b.list_objects_v2(Bucket=bucket, MaxKeys=0)
+    assert zero['KeyCount'] == 0 and not zero['IsTruncated'], zero
     copied = b.copy_object(Bucket=bucket, Key='copy', CopySource={'Bucket': bucket, 'Key': key})
     assert copied['CopyObjectResult']['ETag'] == b.head_object(Bucket=bucket, Key=key)['ETag']
     assert minio_read('copy') == small
@@ -122,4 +147,4 @@ def run(endpoint, access_key, secret_key):
     m.remove_bucket(bucket)
     b.close()
     print(f'PASS boto3 {version("boto3")}, botocore {version("botocore")}, minio {version("minio")}: '
-          'cross-client bytes, escaped keys, empty objects, Range, presigned GET, multipart, pagination, CopyObject, conditional copy, abort, DeleteObjects, Quiet, per-key failures and unsupported versions', flush=True)
+          'cross-client bytes, escaped keys, empty objects, Range, presigned GET, multipart, V1/V2 grouped pagination, URL encoding, CopyObject, conditional copy, abort, DeleteObjects, Quiet, per-key failures and unsupported versions', flush=True)
