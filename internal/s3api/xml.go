@@ -68,16 +68,22 @@ type bucketEntry struct {
 }
 
 type listBucketResult struct {
-	XMLName       xml.Name      `xml:"ListBucketResult"`
-	Xmlns         string        `xml:"xmlns,attr"`
-	Name          string        `xml:"Name"`
-	Prefix        string        `xml:"Prefix"`
-	KeyCount      int           `xml:"KeyCount"`
-	MaxKeys       int           `xml:"MaxKeys"`
-	IsTruncated   bool          `xml:"IsTruncated"`
-	Contents      []objectEntry `xml:"Contents"`
-	NextContToken string        `xml:"NextContinuationToken,omitempty"`
-	ContToken     string        `xml:"ContinuationToken,omitempty"`
+	XMLName        xml.Name       `xml:"ListBucketResult"`
+	Xmlns          string         `xml:"xmlns,attr"`
+	Name           string         `xml:"Name"`
+	Prefix         string         `xml:"Prefix"`
+	KeyCount       *int           `xml:"KeyCount,omitempty"`
+	MaxKeys        int            `xml:"MaxKeys"`
+	IsTruncated    bool           `xml:"IsTruncated"`
+	Contents       []objectEntry  `xml:"Contents"`
+	NextContToken  string         `xml:"NextContinuationToken,omitempty"`
+	ContToken      string         `xml:"ContinuationToken,omitempty"`
+	StartAfter     string         `xml:"StartAfter,omitempty"`
+	Delimiter      string         `xml:"Delimiter,omitempty"`
+	CommonPrefixes []commonPrefix `xml:"CommonPrefixes"`
+	EncodingType   string         `xml:"EncodingType,omitempty"`
+	Marker         *string        `xml:"Marker,omitempty"`
+	NextMarker     string         `xml:"NextMarker,omitempty"`
 }
 
 type objectEntry struct {
@@ -103,33 +109,6 @@ func listBucketsXML(names []string) listAllMyBucketsResult {
 		Owner:   owner{ID: "kladovka", DisplayName: "kladovka"},
 		Buckets: buckets{Bucket: entries},
 	}
-}
-
-func listObjectsXML(polka, prefix, cont string, maxKeys int, objs []storage.ObjectMeta, truncated bool) listBucketResult {
-	contents := make([]objectEntry, 0, len(objs))
-	for _, o := range objs {
-		contents = append(contents, objectEntry{
-			Key:          o.Key,
-			LastModified: s3Time(o.LastModified),
-			ETag:         o.ETag,
-			Size:         o.Size,
-			StorageClass: "STANDARD",
-		})
-	}
-	res := listBucketResult{
-		Xmlns:       "http://s3.amazonaws.com/doc/2006-03-01/",
-		Name:        polka,
-		Prefix:      prefix,
-		KeyCount:    len(contents),
-		MaxKeys:     maxKeys,
-		IsTruncated: truncated,
-		Contents:    contents,
-		ContToken:   cont,
-	}
-	if truncated && len(objs) > 0 {
-		res.NextContToken = objs[len(objs)-1].Key
-	}
-	return res
 }
 
 func mapStorageErr(err error) (int, string, string) {

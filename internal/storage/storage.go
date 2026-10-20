@@ -312,7 +312,7 @@ func (s *Store) ListObjects(polka, prefix string, maxKeys int, startAfter string
 		return nil, false, err
 	}
 	sort.Slice(all, func(i, j int) bool { return all[i].Key < all[j].Key })
-	out := make([]ObjectMeta, 0, maxKeys)
+	out := make([]ObjectMeta, 0, min(maxKeys, len(all)))
 	for _, m := range all {
 		if startAfter != "" && m.Key <= startAfter {
 			continue
