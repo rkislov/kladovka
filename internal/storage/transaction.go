@@ -149,6 +149,16 @@ func (s *Store) putLocked(polka, key string, body io.Reader, contentType, etag s
 	return meta, nil
 }
 func (s *Store) commitTransaction(dir string, tx transaction, inject bool) error {
+	if !s.catalogueExactNames {
+		clear(s.catalogues)
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			pp, _ := s.polkaPath(tx.Polka)
+			delete(s.catalogues, pp)
+		}
+	}()
 	op, err := s.objectPath(tx.Polka, tx.Key)
 	if err != nil {
 		return err
@@ -226,6 +236,12 @@ func (s *Store) commitTransaction(dir string, tx transaction, inject bool) error
 	if tx.Delete {
 		s.pruneEmptyParents(tx.Polka, op)
 	}
+	if tx.Delete {
+		s.refreshCatalogue(tx.Polka, op, nil)
+	} else {
+		s.refreshCatalogue(tx.Polka, op, tx.Meta)
+	}
+	complete = true
 	return nil
 }
 func verifyFile(path, expected string) error {

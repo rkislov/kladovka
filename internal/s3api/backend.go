@@ -18,6 +18,7 @@ type Backend interface {
 	HeadObject(string, string) (*storage.ObjectMeta, error)
 	DeleteObject(string, string) error
 	ListObjects(string, string, int, string) ([]storage.ObjectMeta, bool, error)
+	ListObjectPage(string, string, string, string, int) (storage.ObjectPage, error)
 	StatsForPolka(string) (storage.PolkaStats, error)
 	DiskUsage() (uint64, uint64, error)
 	QuotaUsage() (int64, int64, error)

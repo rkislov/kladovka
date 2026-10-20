@@ -43,4 +43,8 @@ func TestMultipartRejectsWrongTargetAndETag(t *testing.T) {
 	if !strings.HasSuffix(meta.ETag, `-1"`) {
 		t.Fatal("not a multipart ETag", meta.ETag)
 	}
+	listed, _, err := s.ListObjects("demo", "", 100, "")
+	if err != nil || len(listed) != 1 || listed[0].ETag != meta.ETag {
+		t.Fatal("multipart catalogue differs", listed, err)
+	}
 }

@@ -229,6 +229,15 @@ func (s *Store) ListObjects(polka, prefix string, maxKeys int, after string) ([]
 	}
 	return all, false, nil
 }
+
+// Override the embedded filesystem store: its cache is never authoritative.
+func (s *Store) ListObjectPage(polka, prefix, delimiter, after string, limit int) (storage.ObjectPage, error) {
+	objects, _, err := s.ListObjects(polka, prefix, int(^uint(0)>>1), "")
+	if err != nil {
+		return storage.ObjectPage{}, err
+	}
+	return storage.PaginateObjects(objects, prefix, delimiter, after, limit), nil
+}
 func (s *Store) StatsForPolka(polka string) (storage.PolkaStats, error) {
 	objs, _, e := s.ListObjects(polka, "", int(^uint(0)>>1), "")
 	v := storage.PolkaStats{Name: polka}
