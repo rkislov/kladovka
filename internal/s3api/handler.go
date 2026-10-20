@@ -66,6 +66,7 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("/api/cluster/maintenance", s.handleMaintenance)
 	}
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
+	mux.HandleFunc("/internal/delete-primary/", s.handlePrimaryDelete)
 	mux.HandleFunc("/internal/polki/", s.handleInternalPolka)
 	mux.HandleFunc("/cluster", s.handleCluster)
 	mux.Handle("/metrics", metrics.Handler(s.refreshMetrics))
@@ -423,13 +424,22 @@ func (s *Server) handleS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, q := range []string{"acl", "versioning", "versionId", "versions", "lifecycle", "policy", "cors", "tagging", "delete", "location", "notification", "restore"} {
+	for _, q := range []string{"acl", "versioning", "versionId", "versions", "lifecycle", "policy", "cors", "tagging", "location", "notification", "restore"} {
 		if r.URL.Query().Has(q) {
 			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "unsupported S3 feature: "+q, r.URL.Path)
 			return
 		}
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/")
+	if r.URL.Query().Has("delete") {
+		bucket, _, object := splitPolkaKey(path)
+		if bucket == "" || object {
+			writeS3Error(w, 400, "InvalidRequest", "delete requires a bucket endpoint", r.URL.Path)
+			return
+		}
+		s.handleDeleteObjects(w, r, bucket)
+		return
+	}
 	if len(r.Header.Values("X-Amz-Copy-Source")) > 0 {
 		if _, _, object := splitPolkaKey(path); !object {
 			writeS3Error(w, 400, "InvalidRequest", "copy destination must be an object", r.URL.Path)
