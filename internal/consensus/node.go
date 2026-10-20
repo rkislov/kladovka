@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -41,6 +42,9 @@ type Store struct {
 	repairError      string
 	replacementError string
 	membershipError  string
+	maintenanceError string
+	activeRequests   atomic.Int64
+	admissionReady   atomic.Bool
 	cancel           context.CancelFunc
 	done             chan struct{}
 	closeOnce        sync.Once
@@ -316,6 +320,7 @@ func (s *Store) apply(c command) error {
 }
 func (s *Store) Status() map[string]any {
 	s.repairMu.Lock()
+	maintenanceError := s.maintenanceError
 	pending, last, replacementError, membershipError := s.pending, s.repairError, s.replacementError, s.membershipError
 	s.repairMu.Unlock()
 	s.fsm.mu.RLock()
@@ -327,5 +332,5 @@ func (s *Store) Status() map[string]any {
 		}
 	}
 	s.fsm.mu.RUnlock()
-	return map[string]any{"mode": "consensus", "term": s.raft.Stats()["term"], "state": s.raft.State().String(), "leader": s.LeaderURL(), "applied_index": index, "repair_pending": pending, "repair_error": last, "tombstones": tombstones, "raft_id": string(s.localID), "voters": s.voterCount(), "quorum": s.requiredQuorum(), "members": s.members(), "replacement": s.replacement(), "replacement_error": replacementError, "membership_change": s.membershipChange(), "membership_error": membershipError, "target_rf": s.TargetRF()}
+	return map[string]any{"mode": "consensus", "term": s.raft.Stats()["term"], "state": s.raft.State().String(), "leader": s.LeaderURL(), "applied_index": index, "repair_pending": pending, "repair_error": last, "tombstones": tombstones, "raft_id": string(s.localID), "voters": s.voterCount(), "quorum": s.requiredQuorum(), "members": s.members(), "replacement": s.replacement(), "replacement_error": replacementError, "membership_change": s.membershipChange(), "membership_error": membershipError, "target_rf": s.TargetRF(), "maintenance": s.Maintenance(), "maintenance_error": maintenanceError, "active_requests": s.activeRequests.Load(), "maintenance_local": s.LocalMaintenance()}
 }

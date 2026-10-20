@@ -35,6 +35,7 @@ type Record struct {
 	Index   uint64             `json:"index"`
 }
 type command struct {
+	Maintenance *Maintenance        `json:"maintenance,omitempty"`
 	Kind        string              `json:"kind"`
 	Polka       string              `json:"polka,omitempty"`
 	Key         string              `json:"key,omitempty"`
@@ -46,17 +47,19 @@ type command struct {
 	Topology    map[string]Endpoint `json:"topology,omitempty"`
 }
 type state struct {
-	Buckets          map[string]bool             `json:"buckets"`
-	Records          map[string]Record           `json:"records"`
-	Chunks           map[string]int64            `json:"chunks"`
-	ChunkLogs        map[string]uint64           `json:"chunk_logs"`
-	Index            uint64                      `json:"index"`
-	Replacement      *Replacement                `json:"replacement,omitempty"`
-	Retired          []string                    `json:"retired,omitempty"`
-	RetiredAddresses []string                    `json:"retired_addresses,omitempty"`
-	Topology         map[string]Endpoint         `json:"topology,omitempty"`
-	Change           *MembershipChange           `json:"membership_change,omitempty"`
-	CompletedChanges map[string]MembershipChange `json:"completed_changes,omitempty"`
+	Maintenance          *Maintenance                `json:"maintenance,omitempty"`
+	CompletedMaintenance map[string]Maintenance      `json:"completed_maintenance,omitempty"`
+	Buckets              map[string]bool             `json:"buckets"`
+	Records              map[string]Record           `json:"records"`
+	Chunks               map[string]int64            `json:"chunks"`
+	ChunkLogs            map[string]uint64           `json:"chunk_logs"`
+	Index                uint64                      `json:"index"`
+	Replacement          *Replacement                `json:"replacement,omitempty"`
+	Retired              []string                    `json:"retired,omitempty"`
+	RetiredAddresses     []string                    `json:"retired_addresses,omitempty"`
+	Topology             map[string]Endpoint         `json:"topology,omitempty"`
+	Change               *MembershipChange           `json:"membership_change,omitempty"`
+	CompletedChanges     map[string]MembershipChange `json:"completed_changes,omitempty"`
 }
 type machine struct {
 	mu           sync.RWMutex
@@ -140,7 +143,44 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 	defer m.mu.Unlock()
 	m.state.Index = l.Index
 	switch c.Kind {
+	case "maintenance_enter":
+		if c.Maintenance == nil {
+			return errors.New("missing maintenance intent")
+		}
+		if (m.state.Maintenance != nil && !m.state.Maintenance.Done) || (m.state.Change != nil && !m.state.Change.Done) || (m.state.Replacement != nil && !m.state.Replacement.Done) {
+			return errors.New("cluster operation pending")
+		}
+		if _, ok := m.state.CompletedMaintenance[c.Maintenance.RequestID]; ok {
+			return errors.New("maintenance request already completed")
+		}
+		v := *c.Maintenance
+		v.Ready = false
+		v.Done = false
+		m.state.Maintenance = &v
+		return nil
+	case "maintenance_ready", "maintenance_exit":
+		v := m.state.Maintenance
+		if v == nil || c.Maintenance == nil || v.RequestID != c.Maintenance.RequestID || v.RaftID != c.Maintenance.RaftID {
+			return errors.New("maintenance intent differs")
+		}
+		if c.Kind == "maintenance_ready" {
+			if v.Done {
+				return errors.New("maintenance completed")
+			}
+			v.Ready = true
+		} else {
+			v.Done = true
+			if m.state.CompletedMaintenance == nil {
+				m.state.CompletedMaintenance = map[string]Maintenance{}
+			}
+			m.state.CompletedMaintenance[v.RequestID] = *v
+		}
+		return nil
 	case "membership_change":
+		if m.state.Maintenance != nil && !m.state.Maintenance.Done {
+			return errors.New("maintenance active")
+		}
+
 		if c.Change == nil || c.Topology == nil || (c.Change.Kind != "add" && c.Change.Kind != "remove") {
 			return errors.New("missing membership intent")
 		}
@@ -182,6 +222,9 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 		}
 		return nil
 	case "replace":
+		if m.state.Maintenance != nil && !m.state.Maintenance.Done {
+			return errors.New("maintenance active")
+		}
 		if m.state.Change != nil && !m.state.Change.Done {
 			return errors.New("membership operation pending")
 		}

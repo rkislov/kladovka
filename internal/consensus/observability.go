@@ -25,8 +25,11 @@ func (s *Store) Observations() map[string]uint64 {
 	operationError := s.membershipError != "" || s.replacementError != ""
 	s.repairMu.Unlock()
 	c, r := s.membershipChange(), s.replacement()
+	m := s.Maintenance()
+	maintenanceActive := m != nil && !m.Done
 	pending := (c != nil && !c.Done) || (r != nil && !r.Done)
 	return map[string]uint64{
+		"maintenance_active": flag(maintenanceActive), "maintenance_local": flag(s.LocalMaintenance()), "maintenance_drained": flag(maintenanceActive && m.Ready), "active_requests": uint64(s.activeRequests.Load()),
 		"voters": uint64(s.voterCount()), "target_rf": uint64(s.TargetRF()),
 		"leader_known": flag(s.LeaderURL() != ""), "term": number("term"),
 		"commit_index": commit, "raft_applied_index": applied, "apply_backlog": lag, "fsm_pending": number("fsm_pending"),

@@ -31,6 +31,14 @@ func (s *Server) consensusRouting(next http.Handler) http.Handler {
 				return
 			}
 		}
+		if path != "/api/cluster/maintenance" && path != "/api/stats" {
+			if !s.Consensus.BeginRequest() {
+				w.Header().Set("Retry-After", "5")
+				writeS3Error(w, 503, "ServiceUnavailable", "node is recovering or in maintenance", path)
+				return
+			}
+			defer s.Consensus.EndRequest()
+		}
 		if !s.Consensus.CanRoute() {
 			writeS3Error(w, 503, "ServiceUnavailable", "node is not an admitted voter", path)
 			return
@@ -162,4 +170,41 @@ func (s *Server) replicationFactor() int {
 		return s.Consensus.TargetRF()
 	}
 	return s.Cfg.ReplicationFactor
+}
+
+func (s *Server) handleMaintenance(w http.ResponseWriter, r *http.Request) {
+	p, ok := requestPrincipal(r)
+	if !ok || p.Role != "admin" {
+		http.Error(w, "admin required", 403)
+		return
+	}
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var input struct {
+		RequestID string `json:"request_id"`
+		NodeID    string `json:"node_id"`
+		Action    string `json:"action"`
+	}
+	payload, e := io.ReadAll(http.MaxBytesReader(w, r.Body, 4096))
+	if e != nil || verifyPayload(r, payload) != nil {
+		http.Error(w, "invalid maintenance body", 400)
+		return
+	}
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	d.DisallowUnknownFields()
+	if d.Decode(&input) != nil || d.Decode(new(any)) != io.EOF {
+		http.Error(w, "invalid maintenance request", 400)
+		return
+	}
+	if e = s.Consensus.Maintain(input.RequestID, input.NodeID, input.Action); e != nil {
+		http.Error(w, e.Error(), 409)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if input.Action == "enter" {
+		w.WriteHeader(202)
+	}
+	_ = json.NewEncoder(w).Encode(s.Consensus.Status())
 }
