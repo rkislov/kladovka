@@ -11,6 +11,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from boto3.s3.transfer import TransferConfig
 from minio import Minio
+from minio.commonconfig import CopySource
 import urllib3
 
 
@@ -87,11 +88,22 @@ def run(endpoint, access_key, secret_key):
     listed = [obj['Key'] for page in pages for obj in page.get('Contents', [])]
     assert len(pages) == len(expected) and len(listed) == len(expected) and set(listed) == expected, pages
     assert {obj.object_name for obj in m.list_objects(bucket, recursive=True)} == expected
+    copied = b.copy_object(Bucket=bucket, Key='copy', CopySource={'Bucket': bucket, 'Key': key})
+    assert copied['CopyObjectResult']['ETag'] == b.head_object(Bucket=bucket, Key=key)['ETag']
+    assert minio_read('copy') == small
+    m.copy_object(bucket, 'minio-copy', CopySource(bucket, 'literal/a%2Fb', match_etag=m.stat_object(bucket, 'literal/a%2Fb').etag))
+    assert boto_read('minio-copy') == literals['literal/a%2Fb']
+    b.copy_object(Bucket=bucket, Key='multipart-copy', CopySource={'Bucket': bucket, 'Key': 'boto-multipart'})
+    assert minio_read('multipart-copy') == large
+    assert not b.head_object(Bucket=bucket, Key='multipart-copy')['ETag'].endswith('-2"')
+    rejected('PreconditionFailed', lambda: b.copy_object(Bucket=bucket, Key='copy', CopySource={'Bucket': bucket, 'Key': key}, CopySourceIfMatch='"wrong"'))
+    assert boto_read('copy') == small
+    b.copy_object(Bucket=bucket, Key='copy', CopySource={'Bucket': bucket, 'Key': 'copy'}, MetadataDirective='REPLACE', ContentType='application/json')
+    assert b.head_object(Bucket=bucket, Key='copy')['ContentType'] == 'application/json'
+    expected.update({'copy', 'minio-copy', 'multipart-copy'})
     # Unsupported writes must fail explicitly and leave the source untouched.
-    rejected('NotImplemented', lambda: b.copy_object(Bucket=bucket, Key='copy', CopySource={'Bucket': bucket, 'Key': key}))
     rejected('NotImplemented', lambda: b.delete_objects(Bucket=bucket, Delete={'Objects': [{'Key': key}]}))
     assert boto_read(key) == small
-    rejected('NoSuchKey', lambda: b.get_object(Bucket=bucket, Key='copy'))
     upload = b.create_multipart_upload(Bucket=bucket, Key='aborted')['UploadId']
     b.abort_multipart_upload(Bucket=bucket, Key='aborted', UploadId=upload)
     rejected('NoSuchKey', lambda: b.get_object(Bucket=bucket, Key='aborted'))
@@ -101,4 +113,4 @@ def run(endpoint, access_key, secret_key):
     m.remove_bucket(bucket)
     b.close()
     print(f'PASS boto3 {version("boto3")}, botocore {version("botocore")}, minio {version("minio")}: '
-          'cross-client bytes, escaped keys, empty objects, Range, presigned GET, multipart, pagination, abort, deletion and explicit unsupported writes', flush=True)
+          'cross-client bytes, escaped keys, empty objects, Range, presigned GET, multipart, pagination, CopyObject, conditional copy, abort, deletion and explicit unsupported writes', flush=True)

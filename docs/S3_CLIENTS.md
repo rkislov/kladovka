@@ -23,7 +23,8 @@ AWS CLI проверяет создание/удаление полки, PUT/GET
 - Настоящий multipart обоих SDK: объект больше 5 MiB, две части, ETag с суффиксом `-2`, чтение другим SDK и проверка байтов.
 - Все страницы LIST V2 с размером страницы 1 через boto3 и рекурсивный список MinIO; точный набор имён без повторов.
 - Отмену multipart, отсутствие незавершённого объекта, поштучное удаление объектов и пустую полку.
-- Явный `NotImplemented` для CopyObject и DeleteObjects с проверкой, что исходный объект не изменился и копия не появилась.
+- CopyObject обоих SDK: копирование ключа с процентом, чтение другим клиентом, копия multipart-объекта, новый обычный ETag, отказ по условию ETag без перезаписи назначения и REPLACE Content-Type.
+- Явный `NotImplemented` для DeleteObjects с проверкой сохранности исходного объекта.
 
 ## Настройки клиентов
 
@@ -53,7 +54,7 @@ client = boto3.client(
 
 ## Ограничения
 
-CopyObject, DeleteObjects и GetBucketLocation возвращают NotImplemented. Для очистки используйте поштучный DeleteObject; для копирования — GET и PUT через приложение. Delimiter/CommonPrefixes, расширенная пагинация multipart, пользовательские metadata, versioning, ACL, lifecycle, tagging, streaming signatures и расширенные checksum-сценарии этим набором не подтверждаются. Наличие настройки checksum в SDK не означает, что сервер реализует все соответствующие проверки. Полные ограничения ключей и multipart приведены в USER.md.
+DeleteObjects и GetBucketLocation возвращают NotImplemented. Для очистки используйте поштучный DeleteObject. CopyObject добавлен после v0.4.0; профиль и ограничения описаны в [инструкции пользователя](USER.md#copyobject-после-v040). Delimiter/CommonPrefixes, расширенная пагинация multipart, пользовательские metadata, versioning, ACL, lifecycle, tagging, streaming signatures и расширенные checksum-сценарии этим набором не подтверждаются. Наличие настройки checksum в SDK не означает, что сервер реализует все соответствующие проверки. Полные ограничения ключей и multipart приведены в USER.md.
 
 Смена лидера во время незавершённой multipart-загрузки не входит в обещания: временные части не переносятся автоматически. Этот сценарий нельзя выводить из успешной загрузки через follower при стабильном лидере.
 
