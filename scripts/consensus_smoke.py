@@ -207,8 +207,13 @@ def main():
             print('PASS empty-server replacement, fresh Raft identity, restored quorum and full cluster restart')
             serviced = current
             operation = {'request_id': 'service-leader', 'node_id': ids[serviced], 'action': 'enter'}
-            status, body = request(current, '/api/cluster/maintenance', 'POST', operation)
-            assert status == 202, (status, body)
+            def enter_maintenance():
+                status, body = request(current, '/api/cluster/maintenance', 'POST', operation)
+                # Full restart elects a leader before every follower catches up.
+                # A 409 is the required safety response until both are verified.
+                assert status in (202, 409), (status, body)
+                return status == 202
+            wait('verified quorum before maintenance', enter_maintenance)
             current = wait('maintenance leader handoff', lambda: (lambda n: n if n != serviced else None)(leader()))
             wait('maintenance drain', lambda: json.loads(request(current, '/cluster')[1])['consensus']['maintenance']['ready'])
             assert request(serviced, '/api/object/demo/kept')[0] == 503
