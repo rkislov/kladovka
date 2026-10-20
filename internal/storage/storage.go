@@ -45,13 +45,15 @@ type ObjectMeta struct {
 
 // Store is a filesystem-backed object store. Polka = S3 bucket directory.
 type Store struct {
-	root        string
-	mu          sync.RWMutex
-	multipartMu sync.Mutex
-	options     Options
-	active      map[string]int
-	pending     map[string]bool
-	afterStep   func(string) error
+	root                string
+	mu                  sync.RWMutex
+	multipartMu         sync.Mutex
+	options             Options
+	active              map[string]int
+	pending             map[string]bool
+	catalogues          map[string]*catalogue
+	catalogueExactNames bool
+	afterStep           func(string) error
 }
 
 // New creates a store under root and ensures the directory exists.
@@ -99,7 +101,16 @@ func (s *Store) CreatePolka(name string) error {
 	if _, err := os.Stat(pp); err == nil {
 		return ErrPolkaExists
 	}
-	return durableMkdir(pp, s.root)
+	if err := durableMkdir(pp, s.root); err != nil {
+		delete(s.catalogues, pp)
+		return err
+	}
+	if s.catalogueExactNames {
+		s.catalogues[pp] = &catalogue{objects: map[string]ObjectMeta{}}
+	} else {
+		clear(s.catalogues)
+	}
+	return nil
 }
 
 // DeletePolka removes an empty shelf.
@@ -119,6 +130,11 @@ func (s *Store) DeletePolka(name string) error {
 	}
 	if len(entries) > 0 {
 		return ErrPolkaNotEmpty
+	}
+	if s.catalogueExactNames {
+		delete(s.catalogues, pp)
+	} else {
+		clear(s.catalogues)
 	}
 	if err := os.Remove(pp); err != nil {
 		return err
@@ -258,71 +274,11 @@ func (s *Store) DeleteObject(polka, key string) error {
 
 // ListObjects lists objects under a shelf with optional prefix (flat keys).
 func (s *Store) ListObjects(polka, prefix string, maxKeys int, startAfter string) ([]ObjectMeta, bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if len(s.pending) > 0 {
-		return nil, false, ErrPendingWrite
-	}
 	if maxKeys <= 0 {
 		maxKeys = 1000
 	}
-	ok, err := s.PolkaExists(polka)
-	if err != nil {
-		return nil, false, err
-	}
-	if !ok {
-		return nil, false, ErrPolkaNotFound
-	}
-	pp, _ := s.polkaPath(polka)
-	var all []ObjectMeta
-	err = filepath.WalkDir(pp, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(d.Name(), ".kladovka-meta.json") || strings.HasSuffix(d.Name(), ".tmp") {
-			return nil
-		}
-		rel, err := filepath.Rel(pp, path)
-		if err != nil {
-			return err
-		}
-		key := filepath.ToSlash(rel)
-		if prefix != "" && !strings.HasPrefix(key, prefix) {
-			return nil
-		}
-		st, err := d.Info()
-		if err != nil {
-			return err
-		}
-		meta, merr := s.readSideMeta(path)
-		if merr != nil {
-			meta = &ObjectMeta{Key: key, Size: st.Size(), ETag: `""`, ContentType: "application/octet-stream", LastModified: st.ModTime().UTC()}
-		} else {
-			meta.Key = key
-			meta.Size = st.Size()
-			meta.LastModified = st.ModTime().UTC()
-		}
-		all = append(all, *meta)
-		return nil
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	sort.Slice(all, func(i, j int) bool { return all[i].Key < all[j].Key })
-	out := make([]ObjectMeta, 0, min(maxKeys, len(all)))
-	for _, m := range all {
-		if startAfter != "" && m.Key <= startAfter {
-			continue
-		}
-		if len(out) == maxKeys {
-			return out, true, nil
-		}
-		out = append(out, m)
-	}
-	return out, false, nil
+	page, err := s.ListObjectPage(polka, prefix, "", startAfter, maxKeys)
+	return page.Objects, page.Truncated, err
 }
 
 // PolkaStats is a summary of one shelf for the dashboard.
@@ -381,8 +337,17 @@ func (s *Store) SetETag(polka, key, etag string) error {
 	if err != nil {
 		return err
 	}
+	if !s.catalogueExactNames {
+		clear(s.catalogues)
+	}
 	meta.ETag = etag
-	return s.writeSideMeta(op, meta)
+	if err := s.writeSideMeta(op, meta); err != nil {
+		pp, _ := s.polkaPath(polka)
+		delete(s.catalogues, pp)
+		return err
+	}
+	s.refreshCatalogue(polka, op, meta)
+	return nil
 }
 
 // DiskAvailable reports filesystem bytes available to this process.
