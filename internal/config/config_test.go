@@ -53,6 +53,8 @@ func TestConsensusConfiguration(t *testing.T) {
 		t.Setenv("RAFT_LISTEN_ADDR", "")
 		t.Setenv("CLUSTER_MODE", "consensus")
 		t.Setenv("RAFT_BOOTSTRAP", "true")
+		t.Setenv("RAFT_JOIN", "")
+		t.Setenv("RAFT_REPLACEMENT_ADDR", "")
 		t.Setenv("RAFT_CLUSTER_ID", "test-new-cluster")
 		t.Setenv("NODE_ID", "127.0.0.1:18081")
 		t.Setenv("NODE_URL", "http://127.0.0.1:18081")
@@ -76,8 +78,24 @@ func TestConsensusConfiguration(t *testing.T) {
 			t.Fatalf("config: %+v %v", c, e)
 		}
 	})
+	t.Run("replacement", func(t *testing.T) {
+		setup(t)
+		t.Setenv("RAFT_BOOTSTRAP", "false")
+		t.Setenv("RAFT_JOIN", "true")
+		t.Setenv("RAFT_REPLACEMENT_ADDR", "127.0.0.1:19181")
+		c, e := Load()
+		if e != nil || c.RaftListen != "127.0.0.1:19181" || !c.RaftJoin {
+			t.Fatalf("replacement config: %+v %v", c, e)
+		}
+		for _, address := range []string{"127.0.0.1:19081", "127.0.0.1:19082", "0.0.0.0:19181", "bad", "127.0.0.1:0", "storage.example.org:19181"} {
+			t.Setenv("RAFT_REPLACEMENT_ADDR", address)
+			if _, e := Load(); e == nil {
+				t.Fatalf("unsafe replacement address accepted: %s", address)
+			}
+		}
+	})
 	for _, tc := range []struct{ key, value string }{
-		{"REPLICATION_FACTOR", "2"}, {"RAFT_CLUSTER_ID", ""}, {"CLUSTER_TOKEN", "short"}, {"RAFT_PEERS", `{}`}, {"MAX_OBJECT_SIZE", "0"}, {"MAX_OBJECT_SIZE", "2147483648"}, {"CLUSTER_VERIFY_TLS", "false"}, {"RAFT_BOOTSTRAP", "invalid"}, {"RAFT_LISTEN_ADDR", "0.0.0.0:19081"}, {"LISTEN_ADDR", ":18081"},
+		{"RAFT_JOIN", "true"}, {"RAFT_JOIN", "invalid"}, {"REPLICATION_FACTOR", "2"}, {"RAFT_CLUSTER_ID", ""}, {"CLUSTER_TOKEN", "short"}, {"RAFT_PEERS", `{}`}, {"MAX_OBJECT_SIZE", "0"}, {"MAX_OBJECT_SIZE", "2147483648"}, {"CLUSTER_VERIFY_TLS", "false"}, {"RAFT_BOOTSTRAP", "invalid"}, {"RAFT_LISTEN_ADDR", "0.0.0.0:19081"}, {"LISTEN_ADDR", ":18081"},
 		{"RAFT_PEERS", `{"127.0.0.1:18081":"0.0.0.0:19081","127.0.0.1:18082":"127.0.0.1:19082","127.0.0.1:18083":"127.0.0.1:19083"}`},
 	} {
 		t.Run(tc.key+tc.value, func(t *testing.T) {

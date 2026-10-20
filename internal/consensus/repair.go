@@ -101,6 +101,7 @@ func (s *Store) repairLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
+		s.reconcileReplacement()
 		if time.Since(lastPrune) >= time.Minute && s.IsLeader() && s.writeMu.TryLock() {
 			if s.Barrier() == nil {
 				_ = s.apply(command{Kind: "prune"})

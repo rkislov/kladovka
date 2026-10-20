@@ -21,17 +21,19 @@ import (
 
 // Config holds runtime settings for the Кладовка server.
 type Config struct {
-	ClusterMode   string
-	RaftClusterID string
-	RaftBootstrap bool
-	RaftPeers     map[string]string
-	RaftListen    string
-	RaftTLSCert   string
-	RaftTLSKey    string
-	RaftTLSCA     string
-	ListenAddr    string
-	DataRoot      string
-	Region        string
+	ClusterMode         string
+	RaftClusterID       string
+	RaftBootstrap       bool
+	RaftJoin            bool
+	RaftReplacementAddr string
+	RaftPeers           map[string]string
+	RaftListen          string
+	RaftTLSCert         string
+	RaftTLSKey          string
+	RaftTLSCA           string
+	ListenAddr          string
+	DataRoot            string
+	Region              string
 
 	// TLS (optional). When both CertFile and KeyFile are set, HTTPS is enabled.
 	TLSCertFile   string
@@ -87,7 +89,7 @@ func Load() (*Config, error) {
 			}
 		}
 	}
-	for _, key := range []string{"CLUSTER_VERIFY_TLS", "VERIFY_OBJECT_CHECKSUM", "RAFT_BOOTSTRAP"} {
+	for _, key := range []string{"CLUSTER_VERIFY_TLS", "VERIFY_OBJECT_CHECKSUM", "RAFT_BOOTSTRAP", "RAFT_JOIN"} {
 		if v := strings.ToLower(os.Getenv(key)); v != "" {
 			switch v {
 			case "1", "true", "yes", "on", "0", "false", "no", "off":
@@ -100,6 +102,8 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		ClusterMode:          getenv("CLUSTER_MODE", "legacy"),
 		RaftBootstrap:        getenvBool("RAFT_BOOTSTRAP", false),
+		RaftJoin:             getenvBool("RAFT_JOIN", false),
+		RaftReplacementAddr:  os.Getenv("RAFT_REPLACEMENT_ADDR"),
 		RaftClusterID:        os.Getenv("RAFT_CLUSTER_ID"),
 		RaftListen:           os.Getenv("RAFT_LISTEN_ADDR"),
 		RaftTLSCert:          os.Getenv("RAFT_TLS_CERT_FILE"),
@@ -192,6 +196,18 @@ func Load() (*Config, error) {
 	if cfg.ClusterMode != "legacy" && cfg.ClusterMode != "consensus" {
 		return nil, fmt.Errorf("CLUSTER_MODE must be legacy or consensus")
 	}
+	if cfg.RaftReplacementAddr != "" && cfg.RaftBootstrap {
+		return nil, fmt.Errorf("replacement address cannot bootstrap a cluster")
+	}
+	if cfg.RaftReplacementAddr != "" && cfg.ClusterMode != "consensus" {
+		return nil, fmt.Errorf("RAFT_REPLACEMENT_ADDR requires consensus")
+	}
+	if cfg.RaftJoin && cfg.RaftReplacementAddr == "" {
+		return nil, fmt.Errorf("RAFT_JOIN requires a new RAFT_REPLACEMENT_ADDR")
+	}
+	if cfg.RaftJoin && (cfg.RaftBootstrap || cfg.ClusterMode != "consensus") {
+		return nil, fmt.Errorf("RAFT_JOIN requires consensus and RAFT_BOOTSTRAP=false")
+	}
 	if cfg.ClusterMode == "consensus" {
 		if strconv.IntSize < 64 {
 			return nil, fmt.Errorf("consensus mode requires a 64-bit build")
@@ -227,11 +243,41 @@ func Load() (*Config, error) {
 				loopback = false
 			}
 		}
+		if cfg.RaftReplacementAddr != "" {
+			host, port, e := net.SplitHostPort(cfg.RaftReplacementAddr)
+			n, pe := strconv.Atoi(port)
+			for address := range addresses {
+				_, originalPort, _ := net.SplitHostPort(address)
+				originalNumber, _ := strconv.Atoi(originalPort)
+				if n == originalNumber {
+					return nil, fmt.Errorf("replacement raft port must never reuse an original port")
+				}
+			}
+			if e != nil || pe != nil || n < 1 || n > 65535 || host == "" || addresses[cfg.RaftReplacementAddr] {
+				return nil, fmt.Errorf("replacement raft address must be valid and different from every original address")
+			}
+			ip := net.ParseIP(host)
+			if ip == nil || !ip.IsLoopback() {
+				loopback = false
+			}
+		}
 		if cfg.RaftListen == "" {
 			cfg.RaftListen = cfg.RaftPeers[cfg.NodeID]
+			if cfg.RaftReplacementAddr != "" {
+				cfg.RaftListen = cfg.RaftReplacementAddr
+			}
 		}
 		if _, _, err := net.SplitHostPort(cfg.RaftListen); err != nil {
 			return nil, fmt.Errorf("invalid RAFT_LISTEN_ADDR")
+		}
+		if cfg.RaftReplacementAddr != "" {
+			_, advertisedPort, _ := net.SplitHostPort(cfg.RaftReplacementAddr)
+			_, listenPort, _ := net.SplitHostPort(cfg.RaftListen)
+			advertisedNumber, _ := strconv.Atoi(advertisedPort)
+			listenNumber, _ := strconv.Atoi(listenPort)
+			if advertisedNumber != listenNumber {
+				return nil, fmt.Errorf("replacement listener must use its new advertised port")
+			}
 		}
 		tlsFiles := cfg.RaftTLSCert != "" && cfg.RaftTLSKey != "" && cfg.RaftTLSCA != ""
 		listenHost, _, _ := net.SplitHostPort(cfg.RaftListen)

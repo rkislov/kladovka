@@ -25,7 +25,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='kladovka-consensus-') as temporary:
         root = Path(temporary)
         reservations = []
-        for _ in range(6):
+        for _ in range(7):
             sock = socket.socket()
             sock.bind(('127.0.0.1', 0))
             reservations.append(sock)
@@ -36,6 +36,8 @@ def main():
         for sock in reservations:
             sock.close()
         processes = [None]*3
+        replacements = {}
+        data_roots = [root/f'data-{i}' for i in range(3)]
         logs = [(root/f'node-{i}.log').open('w') for i in range(3)]
         admin = 'Basic '+base64.b64encode(b'operator:consensus-test-password').decode()
 
@@ -67,8 +69,9 @@ def main():
         def start(i, bootstrap):
             env = {**os.environ, 'CLUSTER_MODE': 'consensus', 'RAFT_CLUSTER_ID': 'isolated-smoke-cluster',
                    'RAFT_PEERS': json.dumps(peers), 'RAFT_BOOTSTRAP': str(bootstrap).lower(),
-                   'RAFT_LISTEN_ADDR': peers[ids[i]], 'RAFT_TLS_CERT_FILE': '', 'RAFT_TLS_KEY_FILE': '', 'RAFT_TLS_CA_FILE': '',
-                   'LISTEN_ADDR': ids[i], 'NODE_ID': ids[i], 'NODE_URL': urls[i], 'DATA_ROOT': str(root/f'data-{i}'),
+                   'RAFT_JOIN': str(i in replacements).lower(), 'RAFT_REPLACEMENT_ADDR': replacements.get(i, ''),
+                   'RAFT_LISTEN_ADDR': replacements.get(i, peers[ids[i]]), 'RAFT_TLS_CERT_FILE': '', 'RAFT_TLS_KEY_FILE': '', 'RAFT_TLS_CA_FILE': '',
+                   'LISTEN_ADDR': ids[i], 'NODE_ID': ids[i], 'NODE_URL': urls[i], 'DATA_ROOT': str(data_roots[i]),
                    'PEER_NODES': ','.join(url for j, url in enumerate(urls) if j != i), 'REPLICATION_FACTOR': '3',
                    'REGION': 'us-east-1', 'CLUSTER_TOKEN': 'consensus-test-cluster-token', 'CLUSTER_VERIFY_TLS': 'true',
                    'ACCESS_KEY': 'smoke', 'SECRET_KEY': 'consensus-test-s3-secret', 'ADMIN_USER': 'operator',
@@ -178,6 +181,28 @@ def main():
             wait('old leader catches up', lambda: (root/f'data-{current}'/'demo'/'after-failover').read_bytes() == b'new leader accepted')
             assert request(current, '/api/object/demo/deleted')[0] == 404
             print('PASS leader failure, new leader writes, acknowledged data retained, no resurrection')
+            current = wait('leader before node replacement', leader)
+            lost = (current+1)%3
+            stop(lost)
+            data_roots[lost] = root/f'replacement-{lost}'
+            replacements[lost] = f'127.0.0.1:{ports[6]}'
+            start(lost, False)
+            candidate = json.loads(request(lost, '/cluster')[1])['consensus']['raft_id']
+            status, body = request(current, '/api/cluster/replace', 'POST', {'node_id': ids[lost], 'raft_id': candidate})
+            assert status == 202, (status, body)
+            def replaced():
+                state = json.loads(request(current, '/cluster')[1])['consensus']
+                return state['replacement'] and state['replacement']['done'] and state['voters'] == 3
+            wait('empty-server replacement and promotion', replaced, timeout=60)
+            assert request(lost, '/api/object/demo/kept')[1] == payload
+            assert request(lost, '/api/object/demo/deleted')[0] == 404
+            for i in range(3):
+                stop(i)
+            for i in range(3):
+                start(i, False)
+            current = wait('full restart after membership replacement', leader)
+            assert request(current, '/api/object/demo/kept')[1] == payload
+            print('PASS empty-server replacement, fresh Raft identity, restored quorum and full cluster restart')
             survivor = wait('leader before quorum loss', leader)
             for i in range(3):
                 if i != survivor:

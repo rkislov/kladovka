@@ -4,6 +4,7 @@ package consensus
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,23 +26,25 @@ import (
 
 type Store struct {
 	*storage.Store
-	cfg         *config.Config
-	reg         *cluster.Registry
-	fsm         *machine
-	raft        *raft.Raft
-	transport   *raft.NetworkTransport
-	logs        *bolt.BoltStore
-	writeMu     sync.Mutex
-	cacheMu     sync.Mutex
-	ctx         context.Context
-	repairMu    sync.Mutex
-	repairIndex map[string]uint64
-	pending     int
-	repairError string
-	cancel      context.CancelFunc
-	done        chan struct{}
-	closeOnce   sync.Once
-	closeErr    error
+	cfg              *config.Config
+	reg              *cluster.Registry
+	fsm              *machine
+	raft             *raft.Raft
+	transport        *raft.NetworkTransport
+	logs             *bolt.BoltStore
+	writeMu          sync.Mutex
+	cacheMu          sync.Mutex
+	ctx              context.Context
+	repairMu         sync.Mutex
+	repairIndex      map[string]uint64
+	pending          int
+	repairError      string
+	replacementError string
+	cancel           context.CancelFunc
+	done             chan struct{}
+	closeOnce        sync.Once
+	closeErr         error
+	localID          raft.ServerID
 }
 
 func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Store, error) {
@@ -53,8 +57,8 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 		if _, e := os.Lstat(filepath.Join(cfg.DataRoot, ".kladovka-consensus")); !errors.Is(e, os.ErrNotExist) {
 			return nil, errors.New("consensus state was lost; restore saved raft state")
 		}
-		if !cfg.RaftBootstrap {
-			return nil, errors.New("new consensus node requires explicit RAFT_BOOTSTRAP")
+		if !cfg.RaftBootstrap && !cfg.RaftJoin {
+			return nil, errors.New("new consensus node requires explicit RAFT_BOOTSTRAP or RAFT_JOIN")
 		}
 		names, e := base.ListPolki()
 		if e != nil {
@@ -68,23 +72,57 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 		return nil, e
 	}
 	identity, _ := json.Marshal(struct {
-		Version int
-		ID      string
-		NodeID  string
-		Peers   map[string]string
-		RF      int
-	}{1, cfg.RaftClusterID, cfg.NodeID, cfg.RaftPeers, cfg.ReplicationFactor})
+		Version         int
+		ID              string
+		NodeID          string
+		Peers           map[string]string
+		RF              int
+		ReplacementAddr string `json:",omitempty"`
+	}{1, cfg.RaftClusterID, cfg.NodeID, cfg.RaftPeers, cfg.ReplicationFactor, cfg.RaftReplacementAddr})
 	fingerprint := sha256.Sum256(identity)
 	manifest := []byte(hex.EncodeToString(fingerprint[:]))
 	modePath := filepath.Join(cfg.DataRoot, ".kladovka-consensus")
 	modePersisted := false
+	localID := cfg.NodeID
 	if old, e := os.ReadFile(modePath); e == nil {
-		if string(old) != string(manifest) {
+		parts := strings.Split(string(old), "\n")
+		if len(parts) > 2 || parts[0] != string(manifest) {
 			return nil, errors.New("consensus cluster identity differs")
+		}
+		if len(parts) == 2 {
+			if !validIncarnation(cfg.NodeID, parts[1]) {
+				return nil, errors.New("invalid persisted raft incarnation")
+			}
+			localID = parts[1]
+			manifest = old
 		}
 		modePersisted = true
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return nil, e
+	}
+	if !modePersisted && cfg.RaftJoin {
+		old, e := os.ReadFile(filepath.Join(root, "identity"))
+		if e == nil {
+			parts := strings.Split(string(old), "\n")
+			if len(parts) != 2 || parts[0] != string(manifest) || !validIncarnation(cfg.NodeID, parts[1]) {
+				return nil, errors.New("unfinished join identity differs")
+			}
+			info, statErr := os.Stat(filepath.Join(root, "raft.db"))
+			if statErr != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+				return nil, errors.New("unfinished join lost durable raft state; use a new candidate")
+			}
+			localID = parts[1]
+			manifest = old
+		} else if errors.Is(e, os.ErrNotExist) {
+			var nonce [16]byte
+			if _, e := rand.Read(nonce[:]); e != nil {
+				return nil, e
+			}
+			localID = cfg.NodeID + "#" + hex.EncodeToString(nonce[:])
+			manifest = append(manifest, []byte("\n"+localID)...)
+		} else {
+			return nil, e
+		}
 	}
 	_, bootstrapMarkerErr := os.Stat(filepath.Join(root, "bootstrapped"))
 	if bootstrapMarkerErr != nil && !errors.Is(bootstrapMarkerErr, os.ErrNotExist) {
@@ -132,7 +170,11 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 		return nil, e
 	}
 	fail := func(e error) (*Store, error) { logs.Close(); return nil, e }
-	stream, e := newStream(cfg.RaftListen, cfg.RaftPeers[cfg.NodeID], cfg.RaftTLSCert, cfg.RaftTLSKey, cfg.RaftTLSCA, cfg.ClusterToken+"\x00"+cfg.RaftClusterID)
+	advertise := cfg.RaftPeers[cfg.NodeID]
+	if cfg.RaftReplacementAddr != "" {
+		advertise = cfg.RaftReplacementAddr
+	}
+	stream, e := newStream(cfg.RaftListen, advertise, cfg.RaftTLSCert, cfg.RaftTLSKey, cfg.RaftTLSCA, cfg.ClusterToken+"\x00"+cfg.RaftClusterID)
 	if e != nil {
 		return fail(e)
 	}
@@ -143,7 +185,7 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 		return fail(e)
 	}
 	rc := raft.DefaultConfig()
-	rc.LocalID = raft.ServerID(cfg.NodeID)
+	rc.LocalID = raft.ServerID(localID)
 	rc.LogOutput = io.Discard
 	rc.HeartbeatTimeout = time.Second
 	rc.ElectionTimeout = time.Second
@@ -159,7 +201,7 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 	}
 	// Every fresh voter uses exactly the same immutable initial configuration.
 	// Never bootstrap a replacement independently or recover a minority by force.
-	if !existing {
+	if !existing && localID == cfg.NodeID {
 		_, markerErr := os.Stat(filepath.Join(root, "bootstrapped"))
 		if modePersisted || !cfg.RaftBootstrap || !errors.Is(markerErr, os.ErrNotExist) {
 			transport.Close()
@@ -225,7 +267,7 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 		return fail(e)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Store{Store: base, ctx: ctx, cfg: cfg, reg: reg, fsm: m, raft: r, transport: transport, logs: logs, repairIndex: map[string]uint64{}, cancel: cancel, done: make(chan struct{})}
+	s := &Store{Store: base, ctx: ctx, cfg: cfg, reg: reg, fsm: m, raft: r, transport: transport, logs: logs, repairIndex: map[string]uint64{}, cancel: cancel, done: make(chan struct{}), localID: raft.ServerID(localID)}
 	go s.repairLoop(ctx)
 	return s, nil
 }
@@ -241,8 +283,11 @@ func (s *Store) Close() error {
 	})
 	return s.closeErr
 }
-func (s *Store) LeaderURL() string { _, id := s.raft.LeaderWithID(); return s.reg.GetURL(string(id)) }
-func (s *Store) IsLeader() bool    { return s.raft.State() == raft.Leader }
+func (s *Store) LeaderURL() string {
+	_, id := s.raft.LeaderWithID()
+	return s.reg.GetURL(slotForID(string(id)))
+}
+func (s *Store) IsLeader() bool { return s.raft.State() == raft.Leader }
 func (s *Store) Barrier() error {
 	if e := s.raft.VerifyLeader().Error(); e != nil {
 		return ErrUnavailable
@@ -270,7 +315,7 @@ func (s *Store) apply(c command) error {
 }
 func (s *Store) Status() map[string]any {
 	s.repairMu.Lock()
-	pending, last := s.pending, s.repairError
+	pending, last, replacementError := s.pending, s.repairError, s.replacementError
 	s.repairMu.Unlock()
 	s.fsm.mu.RLock()
 	index := s.fsm.state.Index
@@ -281,5 +326,5 @@ func (s *Store) Status() map[string]any {
 		}
 	}
 	s.fsm.mu.RUnlock()
-	return map[string]any{"mode": "consensus", "term": s.raft.Stats()["term"], "state": s.raft.State().String(), "leader": s.LeaderURL(), "applied_index": index, "repair_pending": pending, "repair_error": last, "tombstones": tombstones, "voters": len(s.cfg.RaftPeers), "quorum": len(s.cfg.RaftPeers)/2 + 1}
+	return map[string]any{"mode": "consensus", "term": s.raft.Stats()["term"], "state": s.raft.State().String(), "leader": s.LeaderURL(), "applied_index": index, "repair_pending": pending, "repair_error": last, "tombstones": tombstones, "raft_id": string(s.localID), "voters": s.voterCount(), "quorum": s.requiredQuorum(), "members": s.members(), "replacement": s.replacement(), "replacement_error": replacementError}
 }

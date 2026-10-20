@@ -3,6 +3,7 @@
 package s3api
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -74,4 +75,38 @@ func (s *Server) consensusRouting(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) handleReplaceNode(w http.ResponseWriter, r *http.Request) {
+	p, ok := requestPrincipal(r)
+	if !ok || p.Role != "admin" {
+		http.Error(w, "admin required", 403)
+		return
+	}
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var input struct {
+		NodeID string `json:"node_id"`
+		RaftID string `json:"raft_id"`
+	}
+	payload, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4096))
+	if err != nil || verifyPayload(r, payload) != nil {
+		http.Error(w, "invalid or oversized replacement body", 400)
+		return
+	}
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	d.DisallowUnknownFields()
+	if d.Decode(&input) != nil || d.Decode(new(any)) != io.EOF {
+		http.Error(w, "invalid replacement", 400)
+		return
+	}
+	if e := s.Consensus.Replace(input.NodeID, input.RaftID); e != nil {
+		http.Error(w, e.Error(), 409)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_ = json.NewEncoder(w).Encode(s.Consensus.Status())
 }
