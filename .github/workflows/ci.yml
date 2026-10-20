@@ -13,11 +13,17 @@ jobs:
       - run: go test -race ./...
       - run: go vet ./...
       - run: make build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: scripts/requirements-s3-clients.txt
+      - run: python3 -m pip install -r scripts/requirements-s3-clients.txt
       - name: AWS CLI and backup/restore integration
         run: |
-          python3 scripts/smoke.py --binary ./bin/kladovka
-          python3 scripts/smoke.py --binary ./bin/kladovka --access-policy
-          python3 scripts/consensus_smoke.py --binary ./bin/kladovka
+          python3 scripts/smoke.py --binary ./bin/kladovka --sdk-clients
+          python3 scripts/smoke.py --binary ./bin/kladovka --access-policy --sdk-clients
+          python3 scripts/consensus_smoke.py --binary ./bin/kladovka --sdk-clients
   ui:
     runs-on: ubuntu-latest
     steps:
