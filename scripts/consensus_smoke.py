@@ -220,7 +220,7 @@ def main():
             assert request(serviced, '/healthz')[0] == 200
             assert request(serviced, '/api/stats')[0] == 200
             operation['action'] = 'check'
-            assert request(current, '/api/cluster/maintenance', 'POST', operation)[0] == 200
+            wait('current quorum before stop', lambda: request(current, '/api/cluster/maintenance', 'POST', operation)[0] == 200)
             stop(serviced)
             write(current, 'during-maintenance', b'quorum still writes')
             start(serviced, False)

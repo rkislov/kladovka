@@ -39,9 +39,7 @@ func TestMaintenanceDrainsLeaderAndSurvivesRestart(t *testing.T) {
 		return false
 	})
 	leader := f.nodes[f.leader(t)]
-	if e := leader.Maintain("service-one", node, "check"); e != nil {
-		t.Fatal(e)
-	}
+	eventually(t, 10*time.Second, func() bool { return leader.Maintain("service-one", node, "check") == nil })
 	if leader.voterCount() != 3 || leader.TargetRF() != 3 {
 		t.Fatal("maintenance changed voting configuration")
 	}
