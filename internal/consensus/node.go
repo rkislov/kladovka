@@ -70,9 +70,10 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 	identity, _ := json.Marshal(struct {
 		Version int
 		ID      string
+		NodeID  string
 		Peers   map[string]string
 		RF      int
-	}{1, cfg.RaftClusterID, cfg.RaftPeers, cfg.ReplicationFactor})
+	}{1, cfg.RaftClusterID, cfg.NodeID, cfg.RaftPeers, cfg.ReplicationFactor})
 	fingerprint := sha256.Sum256(identity)
 	manifest := []byte(hex.EncodeToString(fingerprint[:]))
 	modePath := filepath.Join(cfg.DataRoot, ".kladovka-consensus")

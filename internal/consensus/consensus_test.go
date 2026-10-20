@@ -391,6 +391,12 @@ func TestRejectMembershipResetAndLostStableState(t *testing.T) {
 		node.Close()
 		t.Fatal("different cluster identity accepted")
 	}
+	changed = *original
+	changed.NodeID = f.cfgs[(index+1)%3].NodeID
+	if node, e := Open(&changed, f.nodes[index].Store, f.regs[index]); e == nil {
+		node.Close()
+		t.Fatal("durable voter state reused under another node identity")
+	}
 	root := original.DataRoot + "/.consensus"
 	if e := os.Rename(root+"/raft.db", root+"/raft.db.saved"); e != nil {
 		t.Fatal(e)
