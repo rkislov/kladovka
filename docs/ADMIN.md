@@ -483,6 +483,8 @@ RF — текущее число назначенных копий; резерв
 
 Пример Prometheus: [monitoring/prometheus.yml](../monitoring/prometheus.yml). Замените endpoint, Basic username и пути к файлам секретов. В `kladovka-secret` хранится ADMIN_PASSWORD (либо SECRET_KEY в режиме общей пары), в `kladovka-cluster-token` — явно заданный CLUSTER_TOKEN; оба файла должны быть доступны только Prometheus и администратору. Для HTTPS используйте HTTPS URL SD и доверенный CA.
 
+Правила, проверяемые сценарии и действия по каждому алерту находятся в [руководстве мониторинга](../monitoring/README.md). Доставка требует отдельной настройки Alertmanager.
+
 Следите за `up`, `kladovka_cluster_node_healthy`, ростом `kladovka_replication_failed_total`, свободным местом файловой системы, HTTP 5xx и временем ответа. `/metrics` и `/api/stats` не заменяют проверку чтения контрольного объекта. HTTP-счётчик растёт и от опросов панели.
 
 ## 8. Резервное копирование и восстановление

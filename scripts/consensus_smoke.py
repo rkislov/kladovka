@@ -143,6 +143,8 @@ def main():
             assert status == 200 and stats['consensus']['mode'] == 'consensus' and stats['consensus']['quorum'] == 2 and stats['objects_count'] == 3
             status, body = request(current, '/metrics')
             assert status == 200 and b'kladovka_consensus_enabled 1' in body and b'kladovka_consensus_quorum_required 2' in body
+            for metric in (b'kladovka_storage_observation_ok 1', b'kladovka_storage_available_bytes ', b'kladovka_consensus_voters 3', b'kladovka_consensus_target_rf 3', b'kladovka_consensus_membership_pending 0'):
+                assert metric in body, metric
             print('PASS multipart across a follower endpoint, ETag/Range, shared catalog and consensus metrics')
             aws_env = {**{key: value for key, value in os.environ.items() if not key.startswith('AWS_')},
                        'AWS_ACCESS_KEY_ID': 'smoke', 'AWS_SECRET_ACCESS_KEY': 'consensus-test-s3-secret',

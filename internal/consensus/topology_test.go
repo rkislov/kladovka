@@ -161,6 +161,9 @@ func TestMembershipPendingSurvivesRestart(t *testing.T) {
 		}
 		return false
 	})
+	if s.Observations()["membership_pending"] != 1 {
+		t.Fatal("pending operation missing from monitoring")
+	}
 	if s.membershipChange().Done || s.voterCount() != 3 {
 		t.Fatal("unverified learner promoted")
 	}
@@ -172,6 +175,9 @@ func TestMembershipPendingSurvivesRestart(t *testing.T) {
 	}
 	f.ready[3].Store(true)
 	eventually(t, 20*time.Second, func() bool { c := s.membershipChange(); return c != nil && c.Done })
+	if s.Observations()["membership_pending"] != 0 || s.Observations()["target_rf"] != 4 {
+		t.Fatal("completed membership observation incorrect")
+	}
 	if s.voterCount() != 4 {
 		t.Fatal("learner not promoted")
 	}
