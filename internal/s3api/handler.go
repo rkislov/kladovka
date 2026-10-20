@@ -83,18 +83,31 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) refreshMetrics() {
-	used, total, _ := s.Store.DiskUsage()
+	used, total, diskErr := s.Store.DiskUsage()
 	metrics.UpdateStorage(used, total)
+	available := uint64(0)
+	valid := false
+	if disk, ok := s.Store.(interface{ DiskAvailable() (uint64, error) }); ok {
+		var err error
+		available, err = disk.DiskAvailable()
+		valid = err == nil && diskErr == nil && total > 0
+	}
+	metrics.UpdateDiskObservation(available, valid)
 	if s.Consensus != nil {
+		s.Consensus.SyncTopology()
 		state := s.Consensus.Status()
+		metrics.UpdateConsensusObservations(s.Consensus.Observations())
 		metrics.UpdateConsensus(true, s.Consensus.IsLeader(), state["applied_index"].(uint64), state["repair_pending"].(int), state["quorum"].(int))
 	} else {
 		metrics.UpdateConsensus(false, false, 0, 0, 0)
 	}
 	s.Reg.SetSelfUsed(used)
+	ids := map[string]bool{}
 	for _, n := range s.Reg.Snapshot() {
+		ids[n.NodeID] = true
 		metrics.UpdateClusterNode(n.NodeID, n.Healthy, n.UsedBytes)
 	}
+	metrics.RetainClusterNodes(ids)
 }
 
 func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {

@@ -63,7 +63,7 @@ function renderStats(j) {
   $('diskbar').classList.toggle('bg-blue-500', pct < 85);
   $('disk-meter').setAttribute('aria-valuenow', String(pct));
   $('disk-percent').textContent = total ? pct + '%' : '—';
-  $('disklabel').textContent = total ? `${bytes(used)} из ${bytes(total)} · свободно ${bytes(Math.max(0, total - used))}` : 'Ёмкость файловой системы неизвестна';
+  $('disklabel').textContent = total ? `${bytes(used)} из ${bytes(total)} · доступно службе ${m.storage_observation_ok ? bytes(m.storage_available_bytes) : 'неизвестно'}` : 'Ёмкость файловой системы неизвестна';
   $('activity').innerHTML = [ ['Загружено', bytes(m.bytes_uploaded_total)], ['Скачано', bytes(m.bytes_downloaded_total)], ['S3-операции', m.s3_operations_total], ['HTTP-запросы', m.http_requests_total] ].map(([name, value]) => `<div><p class="text-xs text-slate-500">${esc(name)}</p><p class="mt-2 text-lg font-semibold text-slate-800">${esc(value)}</p></div>`).join('');
   $('uptime').textContent = uptime(m.uptime_seconds);
   $('ops').innerHTML = Object.entries(m.s3_by_operation || {}).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join('') + (sharedCatalog ? `<span class="chip">Кворум записи: ${esc(consensus.quorum)} из ${esc(consensus.voters)}</span><span class="chip">Локальное восстановление: ${esc(consensus.repair_pending || 0)}</span>${consensus.repair_error ? '<span class="chip">Ошибка восстановления: ' + esc(consensus.repair_error) + '</span>' : ''}` : `<span class="chip">Репликация: успешно ${esc(m.replication_ok_total || 0)}, ошибок ${esc(m.replication_failed_total || 0)}</span>`);

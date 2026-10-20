@@ -384,3 +384,6 @@ func (s *Store) SetETag(polka, key, etag string) error {
 	meta.ETag = etag
 	return s.writeSideMeta(op, meta)
 }
+
+// DiskAvailable reports filesystem bytes available to this process.
+func (s *Store) DiskAvailable() (uint64, error) { return diskFree(s.root) }

@@ -29,3 +29,14 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build:css
       - run: git diff --exit-code -- internal/webui/static/app.css
+  monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Prometheus configuration and alert scenarios
+        env:
+          PROMETHEUS_IMAGE: prom/prometheus@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
+        run: |
+          docker run --rm --entrypoint /bin/promtool -v "$PWD/monitoring:/work:ro" -w /work "$PROMETHEUS_IMAGE" check config --syntax-only prometheus.yml
+          docker run --rm --entrypoint /bin/promtool -v "$PWD/monitoring:/work:ro" -w /work "$PROMETHEUS_IMAGE" check rules alerts.yml
+          docker run --rm --entrypoint /bin/promtool -v "$PWD/monitoring:/work:ro" -w /work "$PROMETHEUS_IMAGE" test rules alerts.test.yml
