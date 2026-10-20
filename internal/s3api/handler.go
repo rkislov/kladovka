@@ -58,6 +58,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/health", s.handleInternalHealth)
 	if s.Consensus != nil {
 		mux.HandleFunc("/internal/consensus/chunk/{hash}", s.Consensus.ChunkHandler)
+		mux.HandleFunc("/internal/consensus/candidate", s.Consensus.CandidateHandler)
+		mux.HandleFunc("/api/cluster/replace", s.handleReplaceNode)
 	}
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
 	mux.HandleFunc("/internal/polki/", s.handleInternalPolka)

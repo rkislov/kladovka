@@ -34,7 +34,7 @@ def main():
                'AWS_DEFAULT_REGION': 'us-east-1', 'AWS_CONFIG_FILE': str(root/'aws-config'),
                'AWS_SHARED_CREDENTIALS_FILE': str(root/'aws-credentials'), 'AWS_EC2_METADATA_DISABLED': 'true',
                'AWS_REQUEST_CHECKSUM_CALCULATION': 'when_required', 'AWS_RESPONSE_CHECKSUM_VALIDATION': 'when_required',
-               'CLUSTER_MODE': 'legacy', 'AUDIT_LOG_FILE': '', 'SESSION_TTL_SEC': '28800', 'ACCESS_POLICY_FILE': '', 'ADMIN_USER': '', 'ADMIN_PASSWORD': '', 'AWS_PAGER': '', 'LISTEN_ADDR': f'127.0.0.1:{port}', 'NODE_URL': endpoint, 'NODE_ID': 'smoke',
+               'CLUSTER_MODE': 'legacy', 'RAFT_JOIN': 'false', 'RAFT_BOOTSTRAP': 'false', 'RAFT_REPLACEMENT_ADDR': '', 'AUDIT_LOG_FILE': '', 'SESSION_TTL_SEC': '28800', 'ACCESS_POLICY_FILE': '', 'ADMIN_USER': '', 'ADMIN_PASSWORD': '', 'AWS_PAGER': '', 'LISTEN_ADDR': f'127.0.0.1:{port}', 'NODE_URL': endpoint, 'NODE_ID': 'smoke',
                'ACCESS_KEY': 'smoke', 'SECRET_KEY': 'smoke-secret-for-tests', 'REGION': 'us-east-1',
                'PEER_NODES': '', 'REPLICATION_FACTOR': '1', 'CLUSTER_TOKEN': 'smoke-cluster-token',
                'HEALTH_INTERVAL_SEC': '1', 'TLS_MIN_VERSION': '1.2', 'CLUSTER_VERIFY_TLS': 'true',

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/raft"
 	"github.com/rkislov/kladovka/internal/cluster"
 	"github.com/rkislov/kladovka/internal/config"
 	"github.com/rkislov/kladovka/internal/storage"
@@ -38,6 +39,7 @@ type fixture struct {
 	regs    []*cluster.Registry
 	servers []*httptest.Server
 	current []*atomic.Pointer[Store]
+	ready   []*atomic.Bool
 }
 
 func tcpAddress(t *testing.T) string {
@@ -56,6 +58,9 @@ func newFixture(t *testing.T) *fixture {
 	peers := map[string]string{}
 	for i := 0; i < 3; i++ {
 		current := &atomic.Pointer[Store]{}
+		ready := &atomic.Bool{}
+		ready.Store(true)
+		f.ready = append(f.ready, ready)
 		ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			s := current.Load()
 			if s == nil || r.Header.Get("Authorization") != "Bearer consensus-test-token" {
@@ -64,6 +69,13 @@ func newFixture(t *testing.T) *fixture {
 			}
 			mux := http.NewServeMux()
 			mux.HandleFunc("/internal/consensus/chunk/{hash}", s.ChunkHandler)
+			mux.HandleFunc("/internal/consensus/candidate", func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("verify") == "true" && !ready.Load() {
+					http.Error(w, "not ready", 503)
+					return
+				}
+				s.CandidateHandler(w, r)
+			})
 			mux.ServeHTTP(w, r)
 		}))
 		ts.Start()
@@ -478,5 +490,229 @@ func TestConsensusQuotaIncludesMultipartParts(t *testing.T) {
 	}
 	if _, e = s.PutObject("quota", "extra", strings.NewReader("abc"), ""); e != nil {
 		t.Fatal(e)
+	}
+}
+
+func TestReplaceLostNodeUsesFreshIdentityAndLearner(t *testing.T) {
+	f := newFixture(t)
+	leader := f.leader(t)
+	s := f.nodes[leader]
+	if e := s.CreatePolka("replacement"); e != nil {
+		t.Fatal(e)
+	}
+	payload := bytes.Repeat([]byte("durable-replacement"), 30000)
+	if _, e := s.PutObject("replacement", "kept", bytes.NewReader(payload), ""); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := s.PutObject("replacement", "deleted", strings.NewReader("old"), ""); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.DeleteObject("replacement", "deleted"); e != nil {
+		t.Fatal(e)
+	}
+	for n := 0; n < 40; n++ {
+		if _, e := s.PutObject("replacement", "history", strings.NewReader(strings.Repeat("x", n+1)), ""); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e := s.raft.Snapshot().Error(); e != nil {
+		t.Fatal(e)
+	}
+	index := (leader + 1) % 3
+	original := *f.cfgs[index]
+	f.current[index].Store(nil)
+	f.nodes[index].Close()
+	replacement := original
+	replacement.DataRoot = t.TempDir()
+	replacement.RaftBootstrap = false
+	replacement.RaftJoin = true
+	replacement.RaftReplacementAddr = tcpAddress(t)
+	replacement.RaftListen = replacement.RaftReplacementAddr
+	f.cfgs[index] = &replacement
+	f.ready[index].Store(false)
+	base, e := storage.New(replacement.DataRoot)
+	if e != nil {
+		t.Fatal(e)
+	}
+	candidate, e := Open(&replacement, base, f.regs[index])
+	if e != nil {
+		t.Fatal(e)
+	}
+	f.nodes[index] = candidate
+	f.current[index].Store(candidate)
+	if candidate.IsLeader() || candidate.localID == s.localID || candidate.localID == raft.ServerID(original.NodeID) {
+		t.Fatal("fresh candidate reused voter identity")
+	}
+	if candidate.Barrier() == nil {
+		t.Fatal("unadmitted candidate acquired a quorum")
+	}
+	if e = s.Replace(original.NodeID, string(candidate.localID)); e != nil {
+		t.Fatal(e)
+	}
+	if e = s.Replace(original.NodeID, string(candidate.localID)); e != nil {
+		t.Fatal("retry must be idempotent", e)
+	}
+	eventually(t, 15*time.Second, func() bool {
+		for _, m := range s.members() {
+			if m.RaftID == string(candidate.localID) {
+				return m.Suffrage == raft.Nonvoter.String()
+			}
+		}
+		return false
+	})
+	if s.voterCount() != 2 {
+		t.Fatal("learner voted before verification")
+	}
+	// A waiting learner survives both its restart and a full leader-process restart.
+	id := candidate.localID
+	f.restart(t, index)
+	candidate = f.nodes[index]
+	if candidate.localID != id {
+		t.Fatal("restart changed candidate incarnation")
+	}
+	f.restart(t, leader)
+	leader = f.leader(t)
+	s = f.nodes[leader]
+	if r := s.replacement(); r == nil || r.Done {
+		t.Fatal("durable replacement intent lost")
+	}
+	f.ready[index].Store(true)
+	eventually(t, 20*time.Second, func() bool { r := s.replacement(); return r != nil && r.Done })
+	if s.voterCount() != 3 {
+		t.Fatal("replacement did not restore voter count")
+	}
+	if e = s.raft.LeadershipTransferToServer(candidate.localID, raft.ServerAddress(replacement.RaftReplacementAddr)).Error(); e != nil {
+		t.Fatal(e)
+	}
+	eventually(t, 10*time.Second, func() bool { return candidate.IsLeader() && candidate.Barrier() == nil })
+	if candidate.LeaderURL() != replacement.NodeURL {
+		t.Fatal("fresh leader did not map to its HTTP slot")
+	}
+	if e = candidate.raft.LeadershipTransferToServer(s.localID, raft.ServerAddress(s.cfg.RaftPeers[s.cfg.NodeID])).Error(); e != nil {
+		t.Fatal(e)
+	}
+	eventually(t, 10*time.Second, func() bool { return s.IsLeader() && s.Barrier() == nil })
+	if e = s.Barrier(); e != nil {
+		t.Fatal(e)
+	}
+	// With one original voter stopped, the replacement must participate in quorum.
+	other := 3 - leader - index
+	f.current[other].Store(nil)
+	f.nodes[other].Close()
+	if _, e = s.PutObject("replacement", "after", strings.NewReader("new quorum"), ""); e != nil {
+		t.Fatal(e)
+	}
+	r, _, e := s.GetObject("replacement", "kept")
+	if e != nil {
+		t.Fatal(e)
+	}
+	body, _ := io.ReadAll(r)
+	r.Close()
+	if !bytes.Equal(body, payload) {
+		t.Fatal("acknowledged content lost during replacement")
+	}
+	if _, _, e = s.GetObject("replacement", "deleted"); !errors.Is(e, storage.ErrObjectNotFound) {
+		t.Fatal("deleted object resurrected", e)
+	}
+	// The retired voter may return with its original disk/port but must not form
+	// a second quorum or accept writes. It never shares the fresh Raft endpoint.
+	oldBase, e := storage.New(original.DataRoot)
+	if e != nil {
+		t.Fatal(e)
+	}
+	old, e := Open(&original, oldBase, f.regs[index])
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer old.Close()
+	time.Sleep(2 * time.Second)
+	if old.Barrier() == nil {
+		t.Fatal("retired incarnation acquired a quorum")
+	}
+	if _, e = old.PutObject("replacement", "stale", strings.NewReader("bad"), ""); e == nil {
+		t.Fatal("retired incarnation accepted a write")
+	}
+	// No second replacement without the two surviving votes.
+	f.current[index].Store(nil)
+	candidate.Close()
+	if e = s.Replace(original.NodeID, string(id)); e == nil {
+		t.Fatal("replacement accepted without quorum")
+	}
+}
+
+func TestFreshCandidateCannotAcknowledgeRetiredEndpoint(t *testing.T) {
+	f := newFixture(t)
+	leader := f.leader(t)
+	s := f.nodes[leader]
+	if e := s.CreatePolka("isolation"); e != nil {
+		t.Fatal(e)
+	}
+	for i := range f.nodes {
+		if i != leader {
+			f.current[i].Store(nil)
+			f.nodes[i].Close()
+		}
+	}
+	index := (leader + 1) % 3
+	cfg := *f.cfgs[index]
+	cfg.DataRoot = t.TempDir()
+	cfg.RaftBootstrap = false
+	cfg.RaftJoin = true
+	cfg.RaftReplacementAddr = tcpAddress(t)
+	cfg.RaftListen = cfg.RaftReplacementAddr
+	base, e := storage.New(cfg.DataRoot)
+	if e != nil {
+		t.Fatal(e)
+	}
+	candidate, e := Open(&cfg, base, f.regs[index])
+	if e != nil {
+		t.Fatal(e)
+	}
+	f.nodes[index] = candidate
+	f.current[index].Store(candidate)
+	if _, e = s.PutObject("isolation", "unconfirmed", strings.NewReader("must fail"), ""); e == nil {
+		t.Fatal("isolated old leader counted a fresh candidate as the old voter")
+	}
+	if e = s.Replace(cfg.NodeID, string(candidate.localID)); e == nil {
+		t.Fatal("replacement started without the old majority")
+	}
+	if names, e := candidate.ListPolki(); e != nil || len(names) != 0 {
+		t.Fatalf("unadmitted candidate received the old endpoint's log: %v %v", names, e)
+	}
+}
+
+func TestJoinRetryAfterTransportConfigurationFailure(t *testing.T) {
+	f := newFixture(t)
+	cfg := *f.cfgs[0]
+	cfg.DataRoot = t.TempDir()
+	cfg.RaftBootstrap = false
+	cfg.RaftJoin = true
+	cfg.RaftReplacementAddr = tcpAddress(t)
+	cfg.RaftListen = cfg.RaftReplacementAddr
+	cfg.RaftTLSCert = "/no-such-test-certificate"
+	cfg.RaftTLSKey = "/no-such-test-key"
+	cfg.RaftTLSCA = "/no-such-test-ca"
+	base, e := storage.New(cfg.DataRoot)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if node, e := Open(&cfg, base, f.regs[0]); e == nil {
+		node.Close()
+		t.Fatal("invalid TLS configuration accepted")
+	}
+	manifest, e := os.ReadFile(cfg.DataRoot + "/.consensus/identity")
+	if e != nil {
+		t.Fatal(e)
+	}
+	cfg.RaftTLSCert = ""
+	cfg.RaftTLSKey = ""
+	cfg.RaftTLSCA = ""
+	node, e := Open(&cfg, base, f.regs[0])
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer node.Close()
+	if string(node.localID) != strings.Split(string(manifest), "\n")[1] {
+		t.Fatal("retry changed durable joining identity")
 	}
 }

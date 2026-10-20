@@ -35,19 +35,23 @@ type Record struct {
 	Index   uint64             `json:"index"`
 }
 type command struct {
-	Kind   string `json:"kind"`
-	Polka  string `json:"polka,omitempty"`
-	Key    string `json:"key,omitempty"`
-	Record Record `json:"record,omitempty"`
-	Hash   string `json:"hash,omitempty"`
-	Data   []byte `json:"data,omitempty"`
+	Kind        string       `json:"kind"`
+	Polka       string       `json:"polka,omitempty"`
+	Key         string       `json:"key,omitempty"`
+	Record      Record       `json:"record,omitempty"`
+	Hash        string       `json:"hash,omitempty"`
+	Data        []byte       `json:"data,omitempty"`
+	Replacement *Replacement `json:"replacement,omitempty"`
 }
 type state struct {
-	Buckets   map[string]bool   `json:"buckets"`
-	Records   map[string]Record `json:"records"`
-	Chunks    map[string]int64  `json:"chunks"`
-	ChunkLogs map[string]uint64 `json:"chunk_logs"`
-	Index     uint64            `json:"index"`
+	Buckets          map[string]bool   `json:"buckets"`
+	Records          map[string]Record `json:"records"`
+	Chunks           map[string]int64  `json:"chunks"`
+	ChunkLogs        map[string]uint64 `json:"chunk_logs"`
+	Index            uint64            `json:"index"`
+	Replacement      *Replacement      `json:"replacement,omitempty"`
+	Retired          []string          `json:"retired,omitempty"`
+	RetiredAddresses []string          `json:"retired_addresses,omitempty"`
 }
 type machine struct {
 	mu           sync.RWMutex
@@ -131,6 +135,32 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 	defer m.mu.Unlock()
 	m.state.Index = l.Index
 	switch c.Kind {
+	case "replace":
+		if c.Replacement == nil {
+			return errors.New("missing replacement")
+		}
+		r := *c.Replacement
+		if m.state.Replacement != nil && !m.state.Replacement.Done {
+			return errors.New("replacement already pending")
+		}
+		for _, id := range m.state.Retired {
+			if r.NewID == id {
+				return errors.New("retired incarnation")
+			}
+		}
+		m.state.Replacement = &r
+		return nil
+	case "replace_done":
+		if c.Replacement == nil || m.state.Replacement == nil || m.state.Replacement.NewID != c.Replacement.NewID {
+			return errors.New("replacement differs")
+		}
+		if !m.state.Replacement.Done {
+			m.state.Retired = append(m.state.Retired, m.state.Replacement.OldID)
+			m.state.RetiredAddresses = append(m.state.RetiredAddresses, m.state.Replacement.OldAddress)
+		}
+		m.state.Replacement.Done = true
+		return nil
+
 	case "chunk":
 		if !validHash(c.Hash) || len(c.Data) > ChunkSize {
 			return storage.ErrIntegrity
