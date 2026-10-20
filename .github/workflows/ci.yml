@@ -24,6 +24,16 @@ jobs:
           python3 scripts/smoke.py --binary ./bin/kladovka --sdk-clients
           python3 scripts/smoke.py --binary ./bin/kladovka --access-policy --sdk-clients
           python3 scripts/consensus_smoke.py --binary ./bin/kladovka --sdk-clients
+      - name: Load pilot harness contract (small fixture, no performance gate)
+        run: |
+          python3 -m unittest discover -s scripts -p test_load_pilot.py
+          python3 scripts/load_pilot.py --binary ./bin/kladovka --stages 10,25 --samples 3 --output load-pilot-ci.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-pilot-${{ github.event_name }}
+          path: load-pilot-ci.json
+          if-no-files-found: ignore
   ui:
     runs-on: ubuntu-latest
     steps:
