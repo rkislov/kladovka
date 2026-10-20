@@ -134,6 +134,9 @@ func (s *Store) ChangeMembership(id, kind, httpURL, nodeID, raftID string) error
 		}
 		return errors.New("request_id already used for another operation")
 	}
+	if s.maintenanceActive() {
+		return errors.New("maintenance active")
+	}
 	if c := s.membershipChange(); c != nil && !c.Done {
 		return errors.New("membership operation pending")
 	}

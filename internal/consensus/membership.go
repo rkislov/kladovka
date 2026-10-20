@@ -34,13 +34,16 @@ type Member struct {
 	Suffrage string `json:"suffrage"`
 }
 type candidate struct {
-	ClusterID  string `json:"cluster_id"`
-	NodeID     string `json:"node_id"`
-	RaftID     string `json:"raft_id"`
-	Address    string `json:"address"`
-	ReadyIndex uint64 `json:"ready_index"`
-	HTTPURL    string `json:"http_url"`
-	Protocol   int    `json:"membership_protocol"`
+	Leader         bool   `json:"leader"`
+	MaintenanceID  string `json:"maintenance_id,omitempty"`
+	ActiveRequests int64  `json:"active_requests"`
+	ClusterID      string `json:"cluster_id"`
+	NodeID         string `json:"node_id"`
+	RaftID         string `json:"raft_id"`
+	Address        string `json:"address"`
+	ReadyIndex     uint64 `json:"ready_index"`
+	HTTPURL        string `json:"http_url"`
+	Protocol       int    `json:"membership_protocol"`
 }
 
 func slotForID(id string) string { slot, _, _ := strings.Cut(id, "#"); return slot }
@@ -108,7 +111,18 @@ func (s *Store) ReadyHandler(w http.ResponseWriter, r *http.Request) {
 	if address == "" {
 		address = s.cfg.RaftPeers[s.cfg.NodeID]
 	}
-	info := candidate{ClusterID: s.cfg.RaftClusterID, NodeID: s.cfg.NodeID, RaftID: string(s.localID), Address: address, HTTPURL: strings.TrimRight(s.cfg.NodeURL, "/"), Protocol: 2}
+	maintenanceID, active := s.requestState()
+	info := candidate{ClusterID: s.cfg.RaftClusterID, NodeID: s.cfg.NodeID, RaftID: string(s.localID), Address: address, HTTPURL: strings.TrimRight(s.cfg.NodeURL, "/"), Protocol: 3, ActiveRequests: active, MaintenanceID: maintenanceID}
+	if s.IsLeader() {
+		if s.Barrier() != nil {
+			http.Error(w, "leader unavailable", 503)
+			return
+		}
+		info.Leader = true
+	}
+	s.fsm.mu.RLock()
+	info.ReadyIndex = s.fsm.state.Index
+	s.fsm.mu.RUnlock()
 	if r.URL.Query().Get("verify") == "true" {
 		index, e := s.verifiedIndex(r.Context())
 		if e != nil {
@@ -188,6 +202,9 @@ func (s *Store) Replace(slot, newID string) error {
 	}
 	if slot == s.cfg.NodeID || s.nodeURL(slot) == "" || !validIncarnation(slot, newID) {
 		return errors.New("replace a configured non-leader slot with a fresh incarnation")
+	}
+	if s.maintenanceActive() {
+		return errors.New("maintenance active")
 	}
 	if op := s.membershipChange(); op != nil && !op.Done {
 		return errors.New("membership operation pending")

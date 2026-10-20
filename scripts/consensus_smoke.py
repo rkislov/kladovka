@@ -205,6 +205,31 @@ def main():
             current = wait('full restart after membership replacement', leader)
             assert request(current, '/api/object/demo/kept')[1] == payload
             print('PASS empty-server replacement, fresh Raft identity, restored quorum and full cluster restart')
+            serviced = current
+            operation = {'request_id': 'service-leader', 'node_id': ids[serviced], 'action': 'enter'}
+            def enter_maintenance():
+                status, body = request(current, '/api/cluster/maintenance', 'POST', operation)
+                # Full restart elects a leader before every follower catches up.
+                # A 409 is the required safety response until both are verified.
+                assert status in (202, 409), (status, body)
+                return status == 202
+            wait('verified quorum before maintenance', enter_maintenance)
+            current = wait('maintenance leader handoff', lambda: (lambda n: n if n != serviced else None)(leader()))
+            wait('maintenance drain', lambda: json.loads(request(current, '/cluster')[1])['consensus']['maintenance']['ready'])
+            assert request(serviced, '/api/object/demo/kept')[0] == 503
+            assert request(serviced, '/healthz')[0] == 200
+            assert request(serviced, '/api/stats')[0] == 200
+            operation['action'] = 'check'
+            wait('current quorum before stop', lambda: request(current, '/api/cluster/maintenance', 'POST', operation)[0] == 200)
+            stop(serviced)
+            write(current, 'during-maintenance', b'quorum still writes')
+            start(serviced, False)
+            wait('serviced process restarts', lambda: request(serviced, '/healthz')[0] == 200)
+            assert request(serviced, '/api/object/demo/kept')[0] == 503
+            operation['action'] = 'exit'
+            wait('verified return from maintenance', lambda: request(current, '/api/cluster/maintenance', 'POST', operation)[0] == 200)
+            wait('returned member serves data', lambda: request(serviced, '/api/object/demo/during-maintenance')[1] == b'quorum still writes')
+            print('PASS maintenance leader drain, restart admission guard and verified return')
             for i in (3, 4):
                 ids.append(f'127.0.0.1:{ports[7+(i-3)*2]}')
                 urls.append('http://'+ids[i])
