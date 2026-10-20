@@ -117,6 +117,11 @@ def main():
             aws('s3', 'cp', str(large), 's3://documents/large.bin')
             listing = json.loads(aws('s3api', 'list-objects-v2', '--bucket', 'documents'))
             assert len(listing['Contents']) == 2
+            grouped = json.loads(aws('s3api', 'list-objects-v2', '--bucket', 'documents', '--delimiter', '/', '--page-size', '1'))
+            assert [obj['Key'] for obj in grouped['Contents']] == ['large.bin'], grouped
+            assert grouped['CommonPrefixes'] == [{'Prefix': 'nested/'}], grouped
+            directory = aws('s3', 'ls', 's3://documents/')
+            assert 'PRE nested/' in directory and 'large.bin' in directory and 'readme.txt' not in directory, directory
             aws('s3api', 'get-object', '--bucket', 'documents', '--key', 'large.bin', '--range', 'bytes=0-15', str(root/'range.bin'))
             assert (root/'range.bin').read_bytes() == large.read_bytes()[:16]
             signed = aws('s3', 'presign', 's3://documents/nested/readme.txt', '--expires-in', '300').strip()
