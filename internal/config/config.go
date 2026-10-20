@@ -215,8 +215,14 @@ func Load() (*Config, error) {
 		if err := json.Unmarshal([]byte(os.Getenv("RAFT_PEERS")), &cfg.RaftPeers); err != nil {
 			return nil, fmt.Errorf("RAFT_PEERS must be a JSON object of NODE_ID to raft host:port")
 		}
-		if len(seen) != len(cfg.RaftPeers) || (len(seen) != 3 && len(seen) != 5) || cfg.ReplicationFactor != len(seen) {
-			return nil, fmt.Errorf("consensus requires 3 or 5 voters and RF equal to voter count")
+		seedCount := len(cfg.RaftPeers)
+		joiningNewSlot := cfg.RaftReplacementAddr != "" && cfg.RaftPeers[cfg.NodeID] == "" && !cfg.RaftBootstrap
+		expectedURLs := seedCount
+		if joiningNewSlot {
+			expectedURLs++
+		}
+		if len(seen) != expectedURLs || (seedCount != 3 && seedCount != 5) || cfg.ReplicationFactor != seedCount {
+			return nil, fmt.Errorf("consensus requires the original 3/5 seed configuration; a joining slot is additional")
 		}
 		if cfg.RaftClusterID == "" || len(cfg.ClusterToken) < 16 || cfg.MaxObjectSize <= 0 || cfg.MaxObjectSize > 1<<30 || !cfg.ClusterVerifyTLS {
 			return nil, fmt.Errorf("consensus requires RAFT_CLUSTER_ID, CLUSTER_TOKEN >=16 bytes, MAX_OBJECT_SIZE 1..1GiB and verified TLS")

@@ -38,7 +38,7 @@ func (s *Store) obtain(hash string) ([]byte, error) {
 			}
 		}
 	}
-	for _, node := range s.reg.Snapshot() {
+	for _, node := range s.PeerNodes() {
 		if node.NodeID == s.cfg.NodeID {
 			continue
 		}
@@ -101,6 +101,8 @@ func (s *Store) repairLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
+		s.SyncTopology()
+		s.reconcileMembership()
 		s.reconcileReplacement()
 		if time.Since(lastPrune) >= time.Minute && s.IsLeader() && s.writeMu.TryLock() {
 			if s.Barrier() == nil {

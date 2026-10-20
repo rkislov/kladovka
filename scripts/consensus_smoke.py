@@ -25,14 +25,14 @@ def main():
     with tempfile.TemporaryDirectory(prefix='kladovka-consensus-') as temporary:
         root = Path(temporary)
         reservations = []
-        for _ in range(7):
+        for _ in range(11):
             sock = socket.socket()
             sock.bind(('127.0.0.1', 0))
             reservations.append(sock)
         ports = [sock.getsockname()[1] for sock in reservations]
         ids = [f'127.0.0.1:{port}' for port in ports[:3]]
         urls = ['http://'+node for node in ids]
-        peers = dict(zip(ids, [f'127.0.0.1:{port}' for port in ports[3:]]))
+        peers = dict(zip(ids, [f'127.0.0.1:{port}' for port in ports[3:6]]))
         for sock in reservations:
             sock.close()
         processes = [None]*3
@@ -70,9 +70,9 @@ def main():
             env = {**os.environ, 'CLUSTER_MODE': 'consensus', 'RAFT_CLUSTER_ID': 'isolated-smoke-cluster',
                    'RAFT_PEERS': json.dumps(peers), 'RAFT_BOOTSTRAP': str(bootstrap).lower(),
                    'RAFT_JOIN': str(i in replacements).lower(), 'RAFT_REPLACEMENT_ADDR': replacements.get(i, ''),
-                   'RAFT_LISTEN_ADDR': replacements.get(i, peers[ids[i]]), 'RAFT_TLS_CERT_FILE': '', 'RAFT_TLS_KEY_FILE': '', 'RAFT_TLS_CA_FILE': '',
+                   'RAFT_LISTEN_ADDR': replacements.get(i, peers.get(ids[i], "")), 'RAFT_TLS_CERT_FILE': '', 'RAFT_TLS_KEY_FILE': '', 'RAFT_TLS_CA_FILE': '',
                    'LISTEN_ADDR': ids[i], 'NODE_ID': ids[i], 'NODE_URL': urls[i], 'DATA_ROOT': str(data_roots[i]),
-                   'PEER_NODES': ','.join(url for j, url in enumerate(urls) if j != i), 'REPLICATION_FACTOR': '3',
+                   'PEER_NODES': ','.join(url for j, url in enumerate(urls[:3]) if j != i), 'REPLICATION_FACTOR': '3',
                    'REGION': 'us-east-1', 'CLUSTER_TOKEN': 'consensus-test-cluster-token', 'CLUSTER_VERIFY_TLS': 'true',
                    'ACCESS_KEY': 'smoke', 'SECRET_KEY': 'consensus-test-s3-secret', 'ADMIN_USER': 'operator',
                    'ADMIN_PASSWORD': 'consensus-test-password', 'ACCESS_POLICY_FILE': '', 'AUDIT_LOG_FILE': '',
@@ -203,6 +203,39 @@ def main():
             current = wait('full restart after membership replacement', leader)
             assert request(current, '/api/object/demo/kept')[1] == payload
             print('PASS empty-server replacement, fresh Raft identity, restored quorum and full cluster restart')
+            for i in (3, 4):
+                ids.append(f'127.0.0.1:{ports[7+(i-3)*2]}')
+                urls.append('http://'+ids[i])
+                processes.append(None)
+                data_roots.append(root/f'data-{i}')
+                logs.append((root/f'node-{i}.log').open('w'))
+                replacements[i] = f'127.0.0.1:{ports[8+(i-3)*2]}'
+                start(i, False)
+                candidate = json.loads(request(i, '/cluster')[1])['consensus']['raft_id']
+                assert request(i, '/api/object/demo/kept')[0] == 503
+                operation = {'request_id': f'add-{i}', 'http_url': urls[i], 'raft_id': candidate}
+                status, body = request(current, '/api/cluster/add', 'POST', operation)
+                assert status == 202, (status, body)
+                def changed():
+                    state = json.loads(request(current, '/cluster')[1])['consensus']
+                    return state['membership_change'] and state['membership_change']['done']
+                wait('add voter', changed, timeout=60)
+                assert request(i, '/api/object/demo/kept')[1] == payload
+                assert request(current, '/api/cluster/add', 'POST', operation)[0] == 202
+            assert json.loads(request(current, '/api/stats')[1])['replication_factor'] == 5
+            for i in (4, 3):
+                status, body = request(current, '/api/cluster/remove', 'POST', {'request_id': f'remove-{i}', 'node_id': ids[i]})
+                assert status == 202, (status, body)
+                wait('remove voter', changed, timeout=60)
+                stop(i)
+            for i in range(3):
+                stop(i)
+            for i in range(3):
+                start(i, False)
+            current = wait('restart after expansion and removal', leader)
+            assert request(current, '/api/object/demo/kept')[1] == payload
+            assert json.loads(request(current, '/api/stats')[1])['replication_factor'] == 3
+            print('PASS HTTP membership 3→4→5→4→3, routing, data verification, idempotency and restart')
             survivor = wait('leader before quorum loss', leader)
             for i in range(3):
                 if i != survivor:
@@ -217,7 +250,7 @@ def main():
                 print(f'node {i}:\n'+(root/f'node-{i}.log').read_text())
             raise
         finally:
-            for i in range(3):
+            for i in range(len(processes)):
                 stop(i)
             for log in logs:
                 log.close()
