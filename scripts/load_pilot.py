@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from urllib.request import Request, urlopen
+from urllib.request import Request, ProxyHandler, build_opener
 
 import boto3
 from botocore.config import Config
@@ -148,8 +148,10 @@ def servers(binary, mode, root, object_bytes):
             processes.append(subprocess.Popen([str(binary)], cwd=root, env=env, stdout=log, stderr=log))
         auth = 'Basic ' + base64.b64encode(f'{access}:{secret}'.encode()).decode()
 
+        admin_client = build_opener(ProxyHandler({}))
+
         def admin(index, path):
-            with urlopen(Request(urls[index] + path, headers={'Authorization': auth}), timeout=2) as response:
+            with admin_client.open(Request(urls[index] + path, headers={'Authorization': auth}), timeout=2) as response:
                 return json.load(response)
 
         deadline = time.monotonic() + 40
@@ -322,6 +324,7 @@ def main():
               'harness_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               'client': {'python': platform.python_version(), 'boto3': version('boto3'), 'botocore': version('botocore')},
               'settings': {'stages': args.stages, 'object_bytes': args.object_bytes, 'list_samples': args.samples,
+                           'payload_pattern': 'identical across keys; consensus chunks can deduplicate',
                            'max_keys': 100, 'groups': 100, 'retries': 0, 'tls': False, 'audit': False,
                            'max_concurrent_uploads': 4, 'checksum_verification': True},
               'method': 'Closed loop; request latency includes client signing, transfer and validation, excludes executor queue. Warm-up excluded. Success percentiles use nearest rank. RSS is sampled sum of server processes every 200ms, not an exact peak. CPU is summed server process time. Client and servers share one host and disk; cache not cleared. Full traversal is one observation, not a latency distribution.',
