@@ -20,6 +20,7 @@ import xml.etree.ElementTree as ET
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', default='./bin/kladovka')
+    parser.add_argument('--sdk-clients', action='store_true', help='run pinned boto3 and MinIO SDK contracts')
     args = parser.parse_args()
     binary = str(Path(args.binary).resolve())
     with tempfile.TemporaryDirectory(prefix='kladovka-consensus-') as temporary:
@@ -112,6 +113,9 @@ def main():
             for i in range(3):
                 start(i, True)
             current = wait('initial leader', leader)
+            if args.sdk_clients:
+                from s3_clients import run
+                run(urls[(current+1)%3], 'smoke', 'consensus-test-s3-secret')
             status, body = request((current+1)%3, '/api/polki', 'POST', {'name': 'demo'})
             assert status == 201, (status, body)
             payload = b'consensus-block-data\n'*40000

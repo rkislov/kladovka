@@ -14,3 +14,5 @@ coverage.out
 /node_modules/
 /.cache/
 __pycache__/
+
+.venv-s3/
