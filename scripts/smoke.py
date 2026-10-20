@@ -106,6 +106,11 @@ def main():
             small = root/'small.txt'
             small.write_bytes(b'backup and restore verification\n')
             aws('s3', 'cp', str(small), 's3://documents/nested/readme.txt')
+            copy_result = json.loads(aws('s3api', 'copy-object', '--bucket', 'documents', '--key', 'copied.txt', '--copy-source', 'documents/nested/readme.txt'))
+            assert copy_result['CopyObjectResult']['ETag']
+            aws('s3api', 'get-object', '--bucket', 'documents', '--key', 'copied.txt', str(root/'copied.txt'))
+            assert (root/'copied.txt').read_bytes() == small.read_bytes()
+            aws('s3api', 'delete-object', '--bucket', 'documents', '--key', 'copied.txt')
             large = root/'large.bin'
             large.write_bytes(bytes(range(256)) * 32768 + b'multipart tail')
             aws('s3', 'cp', str(large), 's3://documents/large.bin')
@@ -159,7 +164,7 @@ def main():
                 else:
                     raise AssertionError('revoked presigned URL was accepted')
                 print('PASS separate admin credentials, reader presigned GET, live key revocation')
-            print('PASS AWS CLI: bucket, PUT, automatic multipart, LIST, Range, presigned GET, UI, stats')
+            print('PASS AWS CLI: bucket, PUT, CopyObject, automatic multipart, LIST, Range, presigned GET, UI, stats')
             stop()
             shutil.copytree(root/'data', root/'backup')
             shutil.copytree(root/'backup', root/'restored')

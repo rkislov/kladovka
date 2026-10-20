@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -52,7 +53,7 @@ func call(h http.Handler, method, path string, body []byte, credential string) *
 func sign(r *http.Request, body []byte, when time.Time) {
 	signWith(r, body, when, "test", "secret")
 }
-func signWith(r *http.Request, body []byte, when time.Time, accessKey, secretKey string) {
+func signWith(r *http.Request, body []byte, when time.Time, accessKey, secretKey string, extra ...string) {
 	sum := sha256.Sum256(body)
 	payload := hex.EncodeToString(sum[:])
 	r.Header.Set("X-Amz-Content-Sha256", payload)
@@ -61,7 +62,18 @@ func signWith(r *http.Request, body []byte, when time.Time, accessKey, secretKey
 	r.Header.Set("X-Amz-Date", stamp)
 	q := r.URL.Query().Encode()
 	q = strings.ReplaceAll(q, "+", "%20")
-	canonical := strings.Join([]string{r.Method, r.URL.EscapedPath(), q, "host:" + r.Host + "\nx-amz-content-sha256:" + payload + "\nx-amz-date:" + stamp + "\n", "host;x-amz-content-sha256;x-amz-date", payload}, "\n")
+	names := append([]string{"host", "x-amz-content-sha256", "x-amz-date"}, extra...)
+	sort.Strings(names)
+	headers := ""
+	for _, name := range names {
+		value := r.Header.Get(name)
+		if name == "host" {
+			value = r.Host
+		}
+		headers += name + ":" + strings.TrimSpace(value) + "\n"
+	}
+	signed := strings.Join(names, ";")
+	canonical := strings.Join([]string{r.Method, r.URL.EscapedPath(), q, headers, signed, payload}, "\n")
 	hash := sha256.Sum256([]byte(canonical))
 	scope := date + "/us-east-1/s3/aws4_request"
 	message := "AWS4-HMAC-SHA256\n" + stamp + "\n" + scope + "\n" + hex.EncodeToString(hash[:])
@@ -71,7 +83,7 @@ func signWith(r *http.Request, body []byte, when time.Time, accessKey, secretKey
 		key = mac(key, v)
 	}
 	signature := hex.EncodeToString(mac(key, message))
-	r.Header.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=%s", accessKey, scope, signature))
+	r.Header.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", accessKey, scope, signed, signature))
 }
 func TestProtectedEndpointsAndCSRF(t *testing.T) {
 	_, h := testServer(t, 100)
@@ -242,6 +254,53 @@ func TestTwoNodeForwardingReplicationAndFailure(t *testing.T) {
 			t.Fatalf("replica: %+v %v", meta, e)
 		}
 	}
+	// Destination primary differs from source primary. Even a valid but stale
+	// local replica must not be used as the copy source.
+	sourcePrimary := 0
+	if !nodes[0].Rep.IsPrimary("demo", "nested/key") {
+		sourcePrimary = 1
+	}
+	targetPrimary := 1 - sourcePrimary
+	copyKey := ""
+	for i := 0; i < 1000; i++ {
+		candidate := fmt.Sprintf("copy-%d", i)
+		if nodes[targetPrimary].Rep.IsPrimary("demo", candidate) {
+			copyKey = candidate
+			break
+		}
+	}
+	if copyKey == "" {
+		t.Fatal("no opposite placement")
+	}
+	if _, e := nodes[targetPrimary].Store.PutObject("demo", "nested/key", strings.NewReader("stale"), "text/plain"); e != nil {
+		t.Fatal(e)
+	}
+	copyReq, _ := http.NewRequest("PUT", servers[sourcePrimary].URL+"/demo/"+copyKey, nil)
+	copyReq.Header.Set("X-Amz-Copy-Source", "/demo/nested/key")
+	signWith(copyReq, nil, time.Now(), "test", "secret", "x-amz-copy-source")
+	copyResp, e := http.DefaultClient.Do(copyReq)
+	if e != nil {
+		t.Fatal(e)
+	}
+	copyBody, _ := io.ReadAll(copyResp.Body)
+	copyResp.Body.Close()
+	if copyResp.StatusCode != 200 {
+		t.Fatalf("remote copy: %d %s", copyResp.StatusCode, copyBody)
+	}
+	for _, node := range nodes {
+		reader, _, e := node.Store.GetObject("demo", copyKey)
+		if e != nil {
+			t.Fatal(e)
+		}
+		data, _ := io.ReadAll(reader)
+		reader.Close()
+		if string(data) != "hello" {
+			t.Fatal("copied stale replica", string(data))
+		}
+	}
+	if _, e := nodes[targetPrimary].Store.PutObject("demo", "nested/key", strings.NewReader("hello"), "text/plain"); e != nil {
+		t.Fatal(e)
+	}
 	// A session is local to the receiving node; authenticated browser writes still
 	// delegate to the primary without forwarding the session cookie or CSRF token.
 	secondary := 0
@@ -274,7 +333,7 @@ func TestTwoNodeForwardingReplicationAndFailure(t *testing.T) {
 	r, _ := http.NewRequest("GET", servers[0].URL+"/api/object/demo/nested/key", nil)
 	r.SetBasicAuth("test", "secret")
 	r.Header.Set("Range", "bytes=1-2")
-	resp, e := http.DefaultClient.Do(r)
+	resp, e = http.DefaultClient.Do(r)
 	if e != nil {
 		t.Fatal(e)
 	}
