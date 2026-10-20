@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rkislov/kladovka/internal/consensus"
 	"github.com/rkislov/kladovka/internal/storage"
 )
 
@@ -132,7 +133,19 @@ func listObjectsXML(polka, prefix, cont string, maxKeys int, objs []storage.Obje
 }
 
 func mapStorageErr(err error) (int, string, string) {
+	if errors.Is(err, consensus.ErrUnavailable) {
+		return 503, "ServiceUnavailable", "consensus quorum or committed data unavailable"
+	}
 	if errors.Is(err, errClusterChange) {
+		return http.StatusServiceUnavailable, "ServiceUnavailable", err.Error()
+	}
+	if errors.Is(err, storage.ErrQuotaExceeded) || errors.Is(err, storage.ErrInsufficientSpace) {
+		return http.StatusInsufficientStorage, "InsufficientStorage", err.Error()
+	}
+	if errors.Is(err, storage.ErrIntegrity) {
+		return http.StatusInternalServerError, "InvalidObjectState", "object integrity check failed"
+	}
+	if errors.Is(err, storage.ErrPendingWrite) {
 		return http.StatusServiceUnavailable, "ServiceUnavailable", err.Error()
 	}
 	switch err {

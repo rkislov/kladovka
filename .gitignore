@@ -10,3 +10,7 @@
 .idea/
 .vscode/
 coverage.out
+
+/node_modules/
+/.cache/
+__pycache__/

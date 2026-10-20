@@ -18,7 +18,7 @@ import (
 var errClusterChange = errors.New("cluster shelf update incomplete")
 
 func (s *Server) updatePeers(ctx context.Context, name, method string) error {
-	if s.Cfg.ReplicationFactor <= 1 {
+	if s.Consensus != nil || s.Cfg.ReplicationFactor <= 1 {
 		return nil
 	}
 	for _, n := range s.Reg.Snapshot() {
@@ -59,6 +59,10 @@ func (s *Server) deletePolka(ctx context.Context, name string) error {
 	return s.updatePeers(ctx, name, http.MethodDelete)
 }
 func (s *Server) handleInternalPolka(w http.ResponseWriter, r *http.Request) {
+	if s.Consensus != nil {
+		http.Error(w, "legacy shelf API disabled in consensus mode", 409)
+		return
+	}
 	name := strings.TrimPrefix(r.URL.Path, "/internal/polki/")
 	var err error
 	switch r.Method {

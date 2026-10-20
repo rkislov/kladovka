@@ -1,0 +1,73 @@
+groups:
+  - name: kladovka
+    rules:
+      - alert: KladovkaNoTargets
+        expr: absent(up{job="kladovka"})
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No Kladovka scrape targets discovered"
+      - alert: KladovkaTargetDown
+        expr: up{job="kladovka"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kladovka metrics endpoint unavailable"
+      - alert: KladovkaNoObservedLeader
+        expr: max by (cluster) (kladovka_consensus_leader{job="kladovka"}) == 0 and on (cluster) max by (cluster) (kladovka_consensus_enabled{job="kladovka"}) == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No leader observed among scraped consensus nodes"
+      - alert: KladovkaDiskLow
+        expr: (kladovka_storage_available_bytes{job="kladovka"} / kladovka_storage_total_bytes{job="kladovka"} < 0.10) and kladovka_storage_observation_ok{job="kladovka"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Less than 10 percent filesystem space available"
+      - alert: KladovkaDiskObservationFailed
+        expr: kladovka_storage_observation_ok{job="kladovka"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Filesystem capacity could not be measured"
+      - alert: KladovkaRepairError
+        expr: kladovka_consensus_repair_error{job="kladovka"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Replica repair keeps reporting an error"
+      - alert: KladovkaRepairPending
+        expr: kladovka_consensus_repair_pending{job="kladovka"} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Replica repair has remained pending for 15 minutes"
+      - alert: KladovkaMembershipPending
+        expr: kladovka_consensus_membership_pending{job="kladovka"} == 1 and kladovka_consensus_leader{job="kladovka"} == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Membership operation has remained pending for 15 minutes"
+      - alert: KladovkaApplyBacklog
+        expr: kladovka_consensus_apply_backlog{job="kladovka"} > 128
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Committed Raft entries are waiting to be applied"
+      - alert: KladovkaHTTPServerErrors
+        expr: sum by (cluster, instance) (rate(kladovka_http_requests_total{job="kladovka",status=~"5.."}[5m])) / sum by (cluster, instance) (rate(kladovka_http_requests_total{job="kladovka"}[5m])) > 0.05 and on (cluster, instance) sum by (cluster, instance) (rate(kladovka_http_requests_total{job="kladovka"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 5 percent HTTP server errors"

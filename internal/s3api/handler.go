@@ -18,10 +18,13 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/rkislov/kladovka/internal/audit"
 	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
 	"github.com/rkislov/kladovka/internal/config"
+	"github.com/rkislov/kladovka/internal/consensus"
 	"github.com/rkislov/kladovka/internal/metrics"
 	"github.com/rkislov/kladovka/internal/storage"
 	"github.com/rkislov/kladovka/internal/webui"
@@ -29,11 +32,23 @@ import (
 
 // Server wires storage, auth and cluster into HTTP handlers.
 type Server struct {
-	Cfg   *config.Config
-	Store *storage.Store
-	Auth  *auth.Authenticator
-	Rep   *cluster.Replicator
-	Reg   *cluster.Registry
+	Cfg          *config.Config
+	Store        Backend
+	Consensus    *consensus.Store
+	Auth         *auth.Authenticator
+	Rep          *cluster.Replicator
+	Reg          *cluster.Registry
+	uploadOnce   sync.Once
+	uploadSlots  chan struct{}
+	tempMu       sync.Mutex
+	tempBytes    int64
+	Audit        *audit.Log
+	sessionMu    sync.Mutex
+	sessions     map[[32]byte]browserSession
+	loginWindows map[string]loginWindow
+	policyMu     sync.Mutex
+	policySeen   bool
+	policyHash   [32]byte
 }
 
 // Handler returns the root mux with Prometheus metrics middleware.
@@ -41,6 +56,14 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/internal/health", s.handleInternalHealth)
+	if s.Consensus != nil {
+		mux.HandleFunc("/internal/consensus/chunk/{hash}", s.Consensus.ChunkHandler)
+		mux.HandleFunc("/internal/consensus/candidate", s.Consensus.CandidateHandler)
+		mux.HandleFunc("/internal/consensus/ready", s.Consensus.ReadyHandler)
+		mux.HandleFunc("/api/cluster/add", s.handleMembership)
+		mux.HandleFunc("/api/cluster/remove", s.handleMembership)
+		mux.HandleFunc("/api/cluster/replace", s.handleReplaceNode)
+	}
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
 	mux.HandleFunc("/internal/polki/", s.handleInternalPolka)
 	mux.HandleFunc("/cluster", s.handleCluster)
@@ -49,22 +72,42 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/polki", s.handleAPIPolki)
 	mux.HandleFunc("/api/polki/", s.handleAPIPolki)
 	mux.HandleFunc("/api/stats", s.handleAPIStats)
+	mux.HandleFunc("/api/session", s.handleSession)
 	mux.HandleFunc("/api/object/", s.handleAPIObject)
 	mux.Handle("/ui/", webui.Handler())
 	mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/", http.StatusFound)
 	})
 	mux.HandleFunc("/", s.handleS3)
-	return metrics.Middleware(s.protect(mux))
+	return metrics.Middleware(s.auditRequests(s.protect(s.consensusRouting(s.limitUploads(mux)))))
 }
 
 func (s *Server) refreshMetrics() {
-	used, total, _ := s.Store.DiskUsage()
+	used, total, diskErr := s.Store.DiskUsage()
 	metrics.UpdateStorage(used, total)
+	available := uint64(0)
+	valid := false
+	if disk, ok := s.Store.(interface{ DiskAvailable() (uint64, error) }); ok {
+		var err error
+		available, err = disk.DiskAvailable()
+		valid = err == nil && diskErr == nil && total > 0
+	}
+	metrics.UpdateDiskObservation(available, valid)
+	if s.Consensus != nil {
+		s.Consensus.SyncTopology()
+		state := s.Consensus.Status()
+		metrics.UpdateConsensusObservations(s.Consensus.Observations())
+		metrics.UpdateConsensus(true, s.Consensus.IsLeader(), state["applied_index"].(uint64), state["repair_pending"].(int), state["quorum"].(int))
+	} else {
+		metrics.UpdateConsensus(false, false, 0, 0, 0)
+	}
 	s.Reg.SetSelfUsed(used)
+	ids := map[string]bool{}
 	for _, n := range s.Reg.Snapshot() {
+		ids[n.NodeID] = true
 		metrics.UpdateClusterNode(n.NodeID, n.Healthy, n.UsedBytes)
 	}
+	metrics.RetainClusterNodes(ids)
 }
 
 func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +127,7 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		polki := make([]storage.PolkaStats, 0, len(names))
-		for _, n := range names {
+		for _, n := range visibleShelves(r, names) {
 			st, err := s.Store.StatsForPolka(n)
 			if err != nil {
 				st = storage.PolkaStats{Name: n}
@@ -96,7 +139,12 @@ func (s *Server) handleAPIPolki(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+		payload, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4096))
+		if err != nil || verifyPayload(r, payload) != nil {
+			http.Error(w, "invalid or oversized request body", http.StatusBadRequest)
+			return
+		}
+		if err := json.NewDecoder(strings.NewReader(string(payload))).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
 			http.Error(w, "нужно поле name", http.StatusBadRequest)
 			return
 		}
@@ -184,7 +232,15 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		objects += st.Objects
 		objectBytes += st.Bytes
 	}
+	quotaUsed, quotaTotal, err := s.Store.QuotaUsage()
+	if err != nil {
+		http.Error(w, "could not inspect storage quota", http.StatusInternalServerError)
+		return
+	}
 	snap := metrics.Collect()
+	if s.Consensus != nil {
+		s.Consensus.SyncTopology()
+	}
 	nodes := s.Reg.Snapshot()
 	healthy := 0
 	for _, n := range nodes {
@@ -194,8 +250,11 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
+		"quota":              map[string]int64{"used_bytes": quotaUsed, "total_bytes": quotaTotal},
+		"consensus":          s.consensusStatus(),
+		"limits":             map[string]int64{"max_object_size": s.Cfg.MaxObjectSize, "max_temp_bytes": s.Cfg.MaxTempBytes},
 		"node_id":            s.Cfg.NodeID,
-		"replication_factor": s.Cfg.ReplicationFactor,
+		"replication_factor": s.replicationFactor(),
 		"nodes_total":        len(nodes),
 		"nodes_healthy":      healthy,
 		"nodes":              nodes,
@@ -232,13 +291,17 @@ func (s *Server) handleInternalHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
+	if s.Consensus != nil {
+		s.Consensus.SyncTopology()
+	}
 	used, _, _ := s.Store.DiskUsage()
 	s.Reg.SetSelfUsed(used)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"nodes":              s.Reg.Snapshot(),
+		"consensus":          s.consensusStatus(),
 		"this_node":          s.Cfg.NodeID,
-		"replication_factor": s.Cfg.ReplicationFactor,
+		"replication_factor": s.replicationFactor(),
 		"used_bytes":         used,
 		"terminology": map[string]string{
 			"bucket": "полка",
@@ -248,6 +311,10 @@ func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
+	if s.Consensus != nil {
+		http.Error(w, "legacy internal object API disabled in consensus mode", http.StatusConflict)
+		return
+	}
 	// /internal/object/{polka}/{key...}
 	path := strings.TrimPrefix(r.URL.Path, "/internal/object/")
 	polka, key, ok := splitPolkaKey(path)
@@ -260,11 +327,7 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 		ct := r.Header.Get("Content-Type")
 		body, _, err := s.spoolBody(r, false)
 		if err != nil {
-			status := http.StatusBadRequest
-			if errors.Is(err, errTooLarge) {
-				status = http.StatusRequestEntityTooLarge
-			}
-			http.Error(w, err.Error(), status)
+			s.spoolFailure(w, r, err)
 			return
 		}
 		defer removeSpool(body)
@@ -272,18 +335,12 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 		if !exists {
 			_ = s.Store.CreatePolka(polka)
 		}
-		meta, err := s.Store.PutObject(polka, key, body, ct)
+		meta, err := s.Store.PutObjectWithETag(polka, key, body, ct, r.Header.Get("X-Kladovka-ETag"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if etag := r.Header.Get("X-Kladovka-ETag"); etag != "" {
-			if err := s.Store.SetETag(polka, key, etag); err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			meta.ETag = etag
-		}
+
 		w.Header().Set("ETag", meta.ETag)
 		w.WriteHeader(http.StatusOK)
 	case http.MethodGet, http.MethodHead:
@@ -319,8 +376,13 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {
-	_, err := s.Auth.AuthenticateRequest(r, r.Header.Get("X-Amz-Content-Sha256"))
+	principal, err := s.authenticateSigned(r)
 	if err == nil {
+		setPrincipal(r, principal)
+		if !allowedRequest(principal, r) {
+			writeS3Error(w, http.StatusForbidden, "AccessDenied", "access denied", r.URL.Path)
+			return false
+		}
 		if strings.HasPrefix(r.Header.Get("X-Amz-Content-Sha256"), "STREAMING-") {
 			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "AWS streaming signatures are not supported; disable optional request checksums", r.URL.Path)
 			return false
@@ -398,7 +460,7 @@ func (s *Server) handleListPolki(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metrics.RecordS3Operation("ListBuckets", "_")
-	writeXML(w, http.StatusOK, listBucketsXML(names))
+	writeXML(w, http.StatusOK, listBucketsXML(visibleShelves(r, names)))
 }
 
 func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka string) {
@@ -457,7 +519,7 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 }
 
 func (s *Server) handleObject(w http.ResponseWriter, r *http.Request, polka, key string) {
-	if s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId")) {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId")) {
 		s.forwardToPrimary(w, r, polka, key)
 		return
 	}
@@ -479,18 +541,14 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request, polka, key
 }
 
 func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key string) {
-	if s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
 		// Forward to primary.
 		s.forwardToPrimary(w, r, polka, key)
 		return
 	}
 	body, size, err := s.spoolBody(r, true)
 	if err != nil {
-		status, code := http.StatusBadRequest, "InvalidRequest"
-		if errors.Is(err, errTooLarge) {
-			status, code = http.StatusRequestEntityTooLarge, "EntityTooLarge"
-		}
-		writeS3Error(w, status, code, err.Error(), r.URL.Path)
+		s.spoolFailure(w, r, err)
 		return
 	}
 	defer removeSpool(body)
@@ -506,7 +564,7 @@ func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key st
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
 	}
-	if s.Cfg.ReplicationFactor > 1 {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 		if err := s.Rep.ReplicatePut(r.Context(), polka, key, body, ct, meta.ETag); err != nil {
 			metrics.RecordReplicationFailed()
 			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "object stored locally but replication incomplete; retry the same PUT", r.URL.Path)
@@ -529,7 +587,7 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 		w.Header().Set("ETag", meta.ETag)
 		w.Header().Set("Content-Type", meta.ContentType)
 		w.Header().Set("x-amz-kladovka-polka", polka)
-		counted := &responseCounter{ResponseWriter: w, status: http.StatusOK}
+		counted := &responseCounter{ResponseWriter: w}
 		http.ServeContent(counted, r, key, meta.LastModified, rc.(io.ReadSeeker))
 		if counted.status == http.StatusOK || counted.status == http.StatusPartialContent {
 			metrics.RecordS3Operation("GetObject", polka)
@@ -543,7 +601,7 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 		return
 	}
 	// Try peers if not found locally.
-	if s.Cfg.ReplicationFactor > 1 {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 		if s.tryFetchFromPeers(w, r, polka, key) {
 			return
 		}
@@ -554,7 +612,7 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 func (s *Server) headObject(w http.ResponseWriter, r *http.Request, polka, key string) {
 	meta, err := s.Store.HeadObject(polka, key)
 	if err != nil {
-		if s.Cfg.ReplicationFactor > 1 && s.tryFetchFromPeers(w, r, polka, key) {
+		if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && s.tryFetchFromPeers(w, r, polka, key) {
 			return
 		}
 		st, code, msg := mapStorageErr(err)
@@ -570,7 +628,7 @@ func (s *Server) headObject(w http.ResponseWriter, r *http.Request, polka, key s
 }
 
 func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, polka, key string) {
-	if s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
 		s.forwardToPrimary(w, r, polka, key)
 		return
 	}
@@ -580,7 +638,7 @@ func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, polka, key
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
 	}
-	if s.Cfg.ReplicationFactor > 1 {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 		if err := s.Rep.ReplicateDelete(r.Context(), polka, key); err != nil {
 			metrics.RecordReplicationFailed()
 			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "local delete completed; replica delete incomplete, retry DELETE", r.URL.Path)
@@ -618,6 +676,13 @@ func (s *Server) forwardToPrimary(w http.ResponseWriter, r *http.Request, polka,
 		}
 	}
 	req.Host = r.Host
+	if active, _ := r.Context().Value(sessionContextKey{}).(bool); active {
+		// Browser sessions are node-local; delegate an authenticated admin operation.
+		req.Header.Del("Cookie")
+		req.Header.Del("X-CSRF-Token")
+		user, password := s.adminCredentials()
+		req.SetBasicAuth(user, password)
+	}
 	resp, err := s.Reg.Client().Do(req)
 	if err != nil {
 		writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", err.Error(), r.URL.Path)
