@@ -17,19 +17,26 @@
 
 ## Документация
 
-- [Инструкция администратора](docs/ADMIN.md): установка, безопасность, HTTPS, кластер, мониторинг и резервные копии.
-- [Инструкция пользователя](docs/USER.md): панель, файлы, AWS CLI, multipart и ошибки.
+- [Инструкция администратора](docs/ADMIN.md): установка, безопасность, HTTPS, [подробная кластеризация и RF](docs/ADMIN.md#6-кластеризация-и-rf), проверка копий, отказы, миграция, мониторинг и резервные копии.
+- [Инструкция пользователя](docs/USER.md): панель, файлы, AWS CLI, multipart, [работа пользователя с кластером](docs/USER.md#7-работа-с-кластером-и-rf), проверка результата и ошибки.
 - [Состояние проекта](docs/STATUS.md): реализованные функции, проверки и оставшиеся ограничения.
 
-Панель, JSON API и метрики требуют HTTP Basic (ACCESS_KEY / SECRET_KEY), внутренний API — Bearer-токен. S3 использует SigV4. Перед сетевой эксплуатацией смените стандартные ключи и настройте HTTPS. Кластер пока требует фиксированного состава и не имеет автоматического восстановления потерянных копий.
+Панель использует форму входа, ограниченные по времени сеансы и кнопку выхода. Метрики и JSON API поддерживают также HTTP Basic; `ADMIN_USER` / `ADMIN_PASSWORD` отделяют администратора от S3-клиентов. `ACCESS_POLICY_FILE` включает пользователей с несколькими ключами и ролями доступа к полкам; JSON API принимает также SigV4 с теми же ограничениями. Внутренний API использует Bearer-токен. Без файла доступа сохраняется совместимость с общей парой `ACCESS_KEY` / `SECRET_KEY`. Настройка и отзыв ключей описаны в [инструкции администратора](docs/ADMIN.md#пользователи-и-ключи). Перед сетевой эксплуатацией смените стандартные ключи и настройте HTTPS. Consensus поддерживает управляемую замену потерянного участника, добавление и вывод узлов в пределах 3–5. По умолчанию работает legacy; новый [consensus-режим](docs/CONSENSUS.md) добавляет восстановление реплик и безопасный failover для 3/5 узлов с RF=N и требует отдельной настройки/миграции.
+
+## Версия 0.4.0
+
+Светлая адаптивная панель на локально собранном Tailwind CSS. Журнал незавершённых записей/удалений, восстановление при запуске, SHA-256-проверка чтения, квота данных, бюджет временных тел, ограничение параллельных загрузок и TTL multipart. Релиз v0.4.0 включает эти возможности. Для consensus требуется отдельная настройка и пилот на целевом оборудовании.
+
+Изменение UI: `make ui` (Node.js 22+), затем `make build`. Обычная Go-сборка использует включённый CSS и не зависит от Node.js/CDN. Проверка трёхузлового failover/восстановления: `python3 scripts/consensus_smoke.py --binary ./bin/kladovka`. Проверка AWS CLI и резервного восстановления: `python3 scripts/smoke.py --binary ./bin/kladovka` (отдельные временные каталоги).
 
 ## Возможности
 
 - Path-style S3 API: ListBuckets / CreateBucket / PutObject / GetObject / HeadObject / DeleteObject / ListObjectsV2
 - Multipart Upload (Create / UploadPart / Complete / Abort / ListParts)
-- Полка = каталог на диске под `DATA_ROOT`
+- Полка = каталог на диске под `DATA_ROOT`; в consensus это локальное представление подтверждённого каталога Raft
 - AWS Signature Version 4 (заголовок `Authorization` и базовый presigned URL)
-- Кластер: хеширование ключа по составу узлов по `полка/ключ`, primary + реплики, фоновый health пиров
+- Consensus: журнал/снимки Raft с данными, кворум, автоматический выбор лидера, догоняющее восстановление, tombstones и проверка блоков. [Настройка и ограничения](docs/CONSENSUS.md).
+- Legacy-кластер: хеширование ключа по составу узлов по `полка/ключ`, primary + реплики, фоновый health пиров
 - Межнодовый internal API (`/internal/health`, `/internal/object/...`)
 - Встроенный веб-UI: `/ui/`
 - JSON API полок и статистики: `/api/polki`, `/api/stats`; операции с файлами: `/api/object/<полка>/<ключ>`
@@ -53,7 +60,7 @@
 Локальная кросс-сборка:
 
 ```bash
-make release VERSION=0.3.0
+make release VERSION=0.4.0
 ```
 
 ---
@@ -110,10 +117,15 @@ aws --endpoint-url http://127.0.0.1:8000 s3 ls s3://documents
 | `DATA_ROOT` | `./data` | Корень данных (полки) |
 | `REGION` | `us-east-1` | Регион для SigV4 |
 | `ACCESS_KEY` | `kladovka` | Access Key ID |
-| `SECRET_KEY` | `kladovka-secret` | Secret Access Key |
+| `SECRET_KEY` | `kladovka-secret` | Secret Access Key в режиме общей пары |
+| `ADMIN_USER`, `ADMIN_PASSWORD` | не заданы | Отдельные Basic-реквизиты администратора; задаются вместе |
+| `SESSION_TTL_SEC` | `28800` | Абсолютный срок сеанса панели, 60–86400 секунд |
+| `AUDIT_LOG_FILE` | `DATA_ROOT/.audit.jsonl` | JSONL-аудит действий и конфигурации доступа, права 0600 |
+| `ACCESS_POLICY_FILE` | не задан | JSON-файл пользователей и S3-ключей, права 0600; при включении общая S3-пара отключена |
 | `NODE_ID` | `node-1` | Идентификатор ноды |
 | `NODE_URL` | `http://localhost:8000` | URL этой ноды для пиров |
 | `PEER_NODES` | — | URL других нод через запятую |
+| `CLUSTER_MODE` | `legacy` | `consensus` включает Raft для 3/5 узлов; [RAFT_* настройки](docs/CONSENSUS.md) |
 | `REPLICATION_FACTOR` | `1` | Число копий объекта |
 | `CLUSTER_VERIFY_TLS` | `true` | Проверять TLS при опросе пиров |
 | `CLUSTER_TOKEN` | выводится из SECRET_KEY | Общий секрет внутреннего API; рекомендуется задать явно |
@@ -225,12 +237,12 @@ make test
 
 ## UI и обои
 
-Веб-UI (`/ui/`) — stencil / street-art оформление на бетонной текстуре.
+Веб-UI (`/ui/`) — светлая панель на Tailwind CSS. Ранее подготовленные street-art обои сохранены отдельным wallpaper pack.
 
 - Скриншоты: [`docs/screenshots/`](./docs/screenshots/)
 - Wallpaper pack (1080p → 5K Retina, MacBook Retina): [`docs/wallpapers/`](./docs/wallpapers/)
 
-![UI: files and statistics](./docs/screenshots/ui-current.png)
+![Светлая панель](./docs/screenshots/ui-light.png)
 
 ---
 

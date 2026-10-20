@@ -1,6 +1,13 @@
 # Copy this file and replace endpoints and credential-file paths for your installation.
 global:
   scrape_interval: 15s
+rule_files:
+  - alerts.yml
+# Configure Alertmanager targets and receivers before expecting notifications.
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["127.0.0.1:9093"]
 scrape_configs:
   - job_name: kladovka
     metrics_path: /metrics
@@ -14,5 +21,7 @@ scrape_configs:
           type: Bearer
           credentials_file: /etc/prometheus/kladovka-cluster-token
     relabel_configs:
+      - target_label: cluster
+        replacement: kladovka-local # Unique per Raft group; same value on all its targets.
       - source_labels: [metrics_scheme]
         target_label: __scheme__

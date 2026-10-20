@@ -207,3 +207,18 @@ func SharedToken(configured, secret string) string {
 	h := sha256.Sum256([]byte("kladovka-internal-v1:" + secret))
 	return hex.EncodeToString(h[:])
 }
+
+// SyncTopology installs committed HTTP endpoints, preserving health for unchanged entries.
+func (r *Registry) SyncTopology(urls map[string]string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	next := make(map[string]*NodeState, len(urls))
+	for id, u := range urls {
+		if n := r.nodes[id]; n != nil && n.URL == u {
+			next[id] = n
+		} else {
+			next[id] = &NodeState{NodeID: id, URL: u, Healthy: id == r.selfID}
+		}
+	}
+	r.nodes = next
+}

@@ -4,6 +4,7 @@
 package s3api
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
 )
 
@@ -22,36 +24,80 @@ func secureEqual(a, b string) bool {
 	return subtle.ConstantTimeCompare(x[:], y[:]) == 1
 }
 
-// protect separates browser/admin authentication from S3 and inter-node credentials.
+// sameOrigin rejects browser cross-site writes, including changes of scheme.
+func sameOrigin(r *http.Request, secure bool) bool {
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		return false
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	scheme := "http"
+	if secure {
+		scheme = "https"
+	}
+	return err == nil && u.Scheme == scheme && u.Host == r.Host && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == ""
+}
+
 func (s *Server) protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		ui := path == "/ui" || strings.HasPrefix(path, "/ui/")
+		api := strings.HasPrefix(path, "/api/")
+		if ui || api {
+			w.Header().Set("Cache-Control", "no-store")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+		}
+		if path == "/api/session" || path == "/ui/login.html" || path == "/ui/login.js" || path == "/ui/app.css" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if strings.HasPrefix(path, "/internal/") {
 			token := cluster.SharedToken(s.Cfg.ClusterToken, s.Cfg.SecretKey)
 			if !secureEqual(r.Header.Get("Authorization"), "Bearer "+token) {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				http.Error(w, "unauthorized", 401)
 				return
 			}
-		} else if path == "/ui" || strings.HasPrefix(path, "/ui/") || strings.HasPrefix(path, "/api/") || path == "/metrics" || path == "/cluster" {
-			user, pass, ok := r.BasicAuth()
-			if !ok || !secureEqual(user, s.Cfg.AccessKey) || !secureEqual(pass, s.Cfg.SecretKey) {
-				w.Header().Set("WWW-Authenticate", `Basic realm="Kladovka", charset="UTF-8"`)
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			if r.Method != http.MethodGet && r.Method != http.MethodHead {
-				origin := r.Header.Get("Origin")
-				if origin != "" {
-					u, e := url.Parse(origin)
-					if e != nil || u.Host != r.Host {
-						http.Error(w, "cross-origin request denied", http.StatusForbidden)
-						return
-					}
-				}
-				if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
-					http.Error(w, "cross-site request denied", http.StatusForbidden)
+			setPrincipal(r, auth.Principal{ID: "cluster", Role: "internal"})
+		} else if ui || api || path == "/metrics" || path == "/cluster" {
+			value, sessionOK := s.browserSession(r)
+			_, cookieErr := r.Cookie(sessionCookie)
+			if sessionOK {
+				setPrincipal(r, adminPrincipal(value.User))
+				*r = *r.WithContext(context.WithValue(r.Context(), sessionContextKey{}, true))
+				if r.Method != http.MethodGet && r.Method != http.MethodHead && !secureEqual(r.Header.Get("X-CSRF-Token"), value.CSRF) {
+					http.Error(w, "CSRF token required", 403)
 					return
 				}
+			} else if ui {
+				http.Redirect(w, r, "/ui/login.html", http.StatusSeeOther)
+				return
+			} else if cookieErr == nil {
+				s.sessionCookie(w, r, "", -1)
+				http.Error(w, "session expired", 401)
+				return
+			} else {
+				user, pass, ok := r.BasicAuth()
+				adminUser, adminPass := s.adminCredentials()
+				if ok && secureEqual(user, adminUser) && secureEqual(pass, adminPass) {
+					setPrincipal(r, auth.Principal{ID: adminUser, Role: "admin"})
+				} else if api && (strings.HasPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 ") || r.URL.Query().Has("X-Amz-Algorithm")) {
+					if !s.requireAuth(w, r) {
+						return
+					}
+				} else {
+					w.Header().Set("WWW-Authenticate", `Basic realm="Kladovka", charset="UTF-8"`)
+					http.Error(w, "unauthorized", 401)
+					return
+				}
+			}
+			if r.Method != http.MethodGet && r.Method != http.MethodHead && !sameOrigin(r, s.cookieSecure(r)) {
+				http.Error(w, "cross-origin request denied", 403)
+				return
 			}
 		}
 		next.ServeHTTP(w, r)
@@ -65,7 +111,7 @@ func (s *Server) spoolBody(r *http.Request, verify bool) (*os.File, int64, error
 	if s.Cfg.MaxObjectSize > 0 && r.ContentLength > s.Cfg.MaxObjectSize {
 		return nil, 0, errTooLarge
 	}
-	f, err := os.CreateTemp("", "kladovka-upload-*")
+	f, err := os.CreateTemp(s.Store.UploadDir(), "upload-*.tmp")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -75,7 +121,7 @@ func (s *Server) spoolBody(r *http.Request, verify bool) (*os.File, int64, error
 	if s.Cfg.MaxObjectSize > 0 {
 		src = io.LimitReader(src, s.Cfg.MaxObjectSize+1)
 	}
-	n, err := io.Copy(io.MultiWriter(f, hash), src)
+	n, err := io.Copy(&tempBudgetWriter{server: s, request: r, dst: io.MultiWriter(f, hash)}, src)
 	if err != nil {
 		return fail(err)
 	}
@@ -114,10 +160,16 @@ type responseCounter struct {
 }
 
 func (w *responseCounter) WriteHeader(status int) {
+	if w.status != 0 {
+		return
+	}
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
 }
 func (w *responseCounter) Write(body []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
 	n, e := w.ResponseWriter.Write(body)
 	w.bytes += int64(n)
 	return n, e

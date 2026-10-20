@@ -1,0 +1,423 @@
+{
+  "rule_files": [
+    "alerts.yml"
+  ],
+  "evaluation_interval": "1m",
+  "tests": [
+    {
+      "name": "KladovkaTargetDown",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "up{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "0+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "1m",
+          "alertname": "KladovkaTargetDown",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "2m",
+          "alertname": "KladovkaTargetDown",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "instance": "n1",
+                "cluster": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "Kladovka metrics endpoint unavailable"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KladovkaDiskLow",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_storage_available_bytes{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "5+0x20"
+        },
+        {
+          "series": "kladovka_storage_total_bytes{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "100+0x20"
+        },
+        {
+          "series": "kladovka_storage_observation_ok{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "1+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "4m",
+          "alertname": "KladovkaDiskLow",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "KladovkaDiskLow",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "instance": "n1",
+                "cluster": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Less than 10 percent filesystem space available"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KladovkaDiskObservationFailed",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_storage_observation_ok{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "0+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "4m",
+          "alertname": "KladovkaDiskObservationFailed",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "KladovkaDiskObservationFailed",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "instance": "n1",
+                "cluster": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Filesystem capacity could not be measured"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KladovkaRepairError",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_consensus_repair_error{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "1+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "4m",
+          "alertname": "KladovkaRepairError",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "KladovkaRepairError",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "instance": "n1",
+                "cluster": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Replica repair keeps reporting an error"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KladovkaRepairPending",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_consensus_repair_pending{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "2+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "14m",
+          "alertname": "KladovkaRepairPending",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "15m",
+          "alertname": "KladovkaRepairPending",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "instance": "n1",
+                "cluster": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Replica repair has remained pending for 15 minutes"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KladovkaMembershipPending",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_consensus_membership_pending{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "1+0x20"
+        },
+        {
+          "series": "kladovka_consensus_leader{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "1+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "14m",
+          "alertname": "KladovkaMembershipPending",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "15m",
+          "alertname": "KladovkaMembershipPending",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "instance": "n1",
+                "cluster": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Membership operation has remained pending for 15 minutes"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KladovkaApplyBacklog",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_consensus_apply_backlog{job=\"kladovka\",instance=\"n1\",cluster=\"test\"}",
+          "values": "129+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "4m",
+          "alertname": "KladovkaApplyBacklog",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "5m",
+          "alertname": "KladovkaApplyBacklog",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "instance": "n1",
+                "cluster": "test",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Committed Raft entries are waiting to be applied"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Leader absent and legacy excluded",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_consensus_enabled{job=\"kladovka\",cluster=\"test\",instance=\"n1\"}",
+          "values": "1+0x5"
+        },
+        {
+          "series": "kladovka_consensus_leader{job=\"kladovka\",cluster=\"test\",instance=\"n1\"}",
+          "values": "0+0x5"
+        },
+        {
+          "series": "kladovka_consensus_enabled{job=\"kladovka\",cluster=\"legacy\",instance=\"n1\"}",
+          "values": "0+0x5"
+        },
+        {
+          "series": "kladovka_consensus_leader{job=\"kladovka\",cluster=\"legacy\",instance=\"n1\"}",
+          "values": "0+0x5"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "1m",
+          "alertname": "KladovkaNoObservedLeader",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "cluster": "test",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "No leader observed among scraped consensus nodes"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "No targets",
+      "interval": "1m",
+      "input_series": [],
+      "alert_rule_test": [
+        {
+          "eval_time": "2m",
+          "alertname": "KladovkaNoTargets",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "kladovka",
+                "severity": "critical"
+              },
+              "exp_annotations": {
+                "summary": "No Kladovka scrape targets discovered"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Recovered replica and completed operation do not alert",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_consensus_repair_pending{job=\"kladovka\",instance=\"n1\"}",
+          "values": "1+0x3 0+0x20"
+        },
+        {
+          "series": "kladovka_consensus_membership_pending{job=\"kladovka\",instance=\"n1\"}",
+          "values": "1+0x3 0+0x20"
+        },
+        {
+          "series": "kladovka_consensus_leader{job=\"kladovka\",instance=\"n1\"}",
+          "values": "1+0x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "20m",
+          "alertname": "KladovkaRepairPending",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "20m",
+          "alertname": "KladovkaMembershipPending",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "name": "HTTP server errors with low traffic suppressed",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_http_requests_total{job=\"kladovka\",cluster=\"test\",instance=\"busy\",status=\"200\"}",
+          "values": "0+54x15"
+        },
+        {
+          "series": "kladovka_http_requests_total{job=\"kladovka\",cluster=\"test\",instance=\"busy\",status=\"503\"}",
+          "values": "0+6x15"
+        },
+        {
+          "series": "kladovka_http_requests_total{job=\"kladovka\",cluster=\"test\",instance=\"quiet\",status=\"503\"}",
+          "values": "0+1x15"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "7m",
+          "alertname": "KladovkaHTTPServerErrors",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "cluster": "test",
+                "instance": "busy",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "More than 5 percent HTTP server errors"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Unknown disk and follower operation do not generate misleading alerts",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "kladovka_storage_available_bytes{job=\"kladovka\",instance=\"n1\"}",
+          "values": "0+0x20"
+        },
+        {
+          "series": "kladovka_storage_total_bytes{job=\"kladovka\",instance=\"n1\"}",
+          "values": "100+0x20"
+        },
+        {
+          "series": "kladovka_storage_observation_ok{job=\"kladovka\",instance=\"n1\"}",
+          "values": "0+0x20"
+        },
+        {
+          "series": "kladovka_consensus_membership_pending{job=\"kladovka\",instance=\"n1\"}",
+          "values": "1+0x20"
+        },
+        {
+          "series": "kladovka_consensus_leader{job=\"kladovka\",instance=\"n1\"}",
+          "values": "0+0x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "20m",
+          "alertname": "KladovkaDiskLow",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "20m",
+          "alertname": "KladovkaMembershipPending",
+          "exp_alerts": []
+        }
+      ]
+    }
+  ]
+}

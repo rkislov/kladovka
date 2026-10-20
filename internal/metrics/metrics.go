@@ -25,21 +25,66 @@ var (
 	httpDurationSum sync.Map // key "method|path" -> *atomic.Uint64 (microseconds)
 	httpDurationCnt sync.Map
 
-	s3Ops      sync.Map // operation|polka -> *atomic.Uint64
-	bytesUp    sync.Map // polka -> *atomic.Uint64
-	bytesDown  sync.Map
-	storageUsed atomic.Uint64
-	storageTotal atomic.Uint64
+	s3Ops                sync.Map // operation|polka -> *atomic.Uint64
+	bytesUp              sync.Map // polka -> *atomic.Uint64
+	bytesDown            sync.Map
+	storageUsed          atomic.Uint64
+	storageTotal         atomic.Uint64
+	storageAvailable     atomic.Uint64
+	storageObservationOK atomic.Uint64
 
 	clusterHealthy sync.Map // node_id -> *atomic.Uint64 (0/1)
 	clusterUsed    sync.Map // node_id -> *atomic.Uint64
 
-	replPublished atomic.Uint64
-	replFailed    atomic.Uint64
-	replOK        atomic.Uint64
+	consensusGauges sync.Map
+	replPublished   atomic.Uint64
+	replFailed      atomic.Uint64
+	replOK          atomic.Uint64
 
 	startTime = time.Now()
 )
+
+func UpdateConsensus(enabled, leader bool, index uint64, pending, quorum int) {
+	flag := func(b bool) uint64 {
+		if b {
+			return 1
+		}
+		return 0
+	}
+	values := map[string]uint64{"enabled": flag(enabled), "leader": flag(leader), "applied_index": index, "repair_pending": uint64(pending), "quorum_required": uint64(quorum)}
+	for name, value := range values {
+		v, _ := consensusGauges.LoadOrStore(name, &atomic.Uint64{})
+		v.(*atomic.Uint64).Store(value)
+	}
+}
+
+// UpdateConsensusObservations accepts only fixed, code-owned metric names.
+func UpdateConsensusObservations(values map[string]uint64) {
+	for name, value := range values {
+		v, _ := consensusGauges.LoadOrStore(name, &atomic.Uint64{})
+		v.(*atomic.Uint64).Store(value)
+	}
+}
+func UpdateDiskObservation(available uint64, ok bool) {
+	storageAvailable.Store(available)
+	var valid uint64
+	if ok {
+		valid = 1
+	}
+	storageObservationOK.Store(valid)
+}
+
+// RetainClusterNodes removes obsolete labels after a committed member removal.
+func RetainClusterNodes(ids map[string]bool) {
+	for _, m := range []*sync.Map{&clusterHealthy, &clusterUsed} {
+		m.Range(func(k, v any) bool {
+			if !ids[k.(string)] {
+				m.Delete(k)
+			}
+			return true
+		})
+	}
+}
 
 func counterInc(m *sync.Map, key string, delta uint64) {
 	v, _ := m.LoadOrStore(key, &atomic.Uint64{})
@@ -181,23 +226,26 @@ func (s *statusRecorder) WriteHeader(code int) {
 
 // Snapshot is a JSON-friendly view of live counters for the dashboard.
 type Snapshot struct {
-	UptimeSeconds      float64            `json:"uptime_seconds"`
-	HTTPRequestsTotal  uint64             `json:"http_requests_total"`
-	S3OperationsTotal  uint64             `json:"s3_operations_total"`
-	BytesUploaded      uint64             `json:"bytes_uploaded_total"`
-	BytesDownloaded    uint64             `json:"bytes_downloaded_total"`
-	StorageUsedBytes   uint64             `json:"storage_used_bytes"`
-	StorageTotalBytes  uint64             `json:"storage_total_bytes"`
-	ReplicationPublished uint64           `json:"replication_published_total"`
-	ReplicationOK      uint64             `json:"replication_ok_total"`
-	ReplicationFailed  uint64             `json:"replication_failed_total"`
-	S3ByOperation      map[string]uint64  `json:"s3_by_operation"`
-	HTTPByStatus       map[string]uint64  `json:"http_by_status"`
+	StorageAvailableBytes uint64            `json:"storage_available_bytes"`
+	StorageObservationOK  bool              `json:"storage_observation_ok"`
+	UptimeSeconds         float64           `json:"uptime_seconds"`
+	HTTPRequestsTotal     uint64            `json:"http_requests_total"`
+	S3OperationsTotal     uint64            `json:"s3_operations_total"`
+	BytesUploaded         uint64            `json:"bytes_uploaded_total"`
+	BytesDownloaded       uint64            `json:"bytes_downloaded_total"`
+	StorageUsedBytes      uint64            `json:"storage_used_bytes"`
+	StorageTotalBytes     uint64            `json:"storage_total_bytes"`
+	ReplicationPublished  uint64            `json:"replication_published_total"`
+	ReplicationOK         uint64            `json:"replication_ok_total"`
+	ReplicationFailed     uint64            `json:"replication_failed_total"`
+	S3ByOperation         map[string]uint64 `json:"s3_by_operation"`
+	HTTPByStatus          map[string]uint64 `json:"http_by_status"`
 }
 
 // Collect builds a Snapshot from in-memory metrics.
 func Collect() Snapshot {
 	snap := Snapshot{
+		StorageAvailableBytes: storageAvailable.Load(), StorageObservationOK: storageObservationOK.Load() == 1,
 		UptimeSeconds:        time.Since(startTime).Seconds(),
 		StorageUsedBytes:     storageUsed.Load(),
 		StorageTotalBytes:    storageTotal.Load(),
@@ -286,6 +334,10 @@ func Handler(refresh func()) http.Handler {
 		writeHelpType(&b, "kladovka_storage_total_bytes", "gauge", "Local storage total bytes (0 if unknown)")
 		fmt.Fprintf(&b, "kladovka_storage_total_bytes %d\n", storageTotal.Load())
 
+		writeHelpType(&b, "kladovka_storage_available_bytes", "gauge", "Filesystem bytes available to the service")
+		fmt.Fprintf(&b, "kladovka_storage_available_bytes %d\n", storageAvailable.Load())
+		writeHelpType(&b, "kladovka_storage_observation_ok", "gauge", "1 when filesystem capacity and availability were measured successfully")
+		fmt.Fprintf(&b, "kladovka_storage_observation_ok %d\n", storageObservationOK.Load())
 		writeHelpType(&b, "kladovka_cluster_node_healthy", "gauge", "1 if cluster node is healthy")
 		forEachCounter(&clusterHealthy, func(nodeID string, v uint64) {
 			fmt.Fprintf(&b, "kladovka_cluster_node_healthy{node_id=%q} %d\n", nodeID, v)
@@ -302,6 +354,11 @@ func Handler(refresh func()) http.Handler {
 		writeHelpType(&b, "kladovka_replication_failed_total", "counter", "Failed replication copies")
 		fmt.Fprintf(&b, "kladovka_replication_failed_total %d\n", replFailed.Load())
 
+		forEachCounter(&consensusGauges, func(name string, value uint64) {
+			metric := "kladovka_consensus_" + name
+			writeHelpType(&b, metric, "gauge", "Local consensus observation (not a readiness guarantee)")
+			fmt.Fprintf(&b, "%s %d\n", metric, value)
+		})
 		_, _ = w.Write([]byte(b.String()))
 	})
 }
