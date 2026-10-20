@@ -20,10 +20,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', default='./bin/kladovka')
     parser.add_argument('--access-policy', action='store_true', help='test separate admin and per-user S3 keys')
+    parser.add_argument('--sdk-clients', action='store_true', help='run pinned boto3 and MinIO SDK contracts')
     args = parser.parse_args()
     binary = str(Path(args.binary).resolve())
     if not shutil.which('aws'):
         raise SystemExit('AWS CLI is required to run the integration smoke test')
+    print(subprocess.check_output(['aws', '--version'], text=True).strip(), flush=True)
     with tempfile.TemporaryDirectory(prefix='kladovka-smoke-') as tmp:
         root = Path(tmp)
         with socket.socket() as sock:
@@ -97,6 +99,9 @@ def main():
 
         try:
             start(root/'data')
+            if args.sdk_clients:
+                from s3_clients import run
+                run(endpoint, env['ACCESS_KEY'], env['SECRET_KEY'])
             aws('s3api', 'create-bucket', '--bucket', 'documents')
             small = root/'small.txt'
             small.write_bytes(b'backup and restore verification\n')
