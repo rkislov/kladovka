@@ -17,6 +17,7 @@ func TestMetricsHandlerContainsSeries(t *testing.T) {
 	RecordS3Operation("PutObject", "полка")
 	RecordBytesUploaded("полка", 100)
 	UpdateStorage(42, 0)
+	UpdateConsensus(true, true, 21, 2, 2)
 	UpdateClusterNode("node-1", true, 42)
 
 	rr := httptest.NewRecorder()
@@ -27,6 +28,9 @@ func TestMetricsHandlerContainsSeries(t *testing.T) {
 		"kladovka_s3_operations_total",
 		"kladovka_storage_used_bytes 42",
 		"kladovka_cluster_node_healthy",
+		"kladovka_consensus_applied_index 21",
+		"kladovka_consensus_repair_pending 2",
+		"kladovka_consensus_quorum_required 2",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q in:\n%s", want, body)

@@ -24,7 +24,7 @@ func (s *Server) limitUploads(next http.Handler) http.Handler {
 		}
 		// A streaming proxy does not spool data locally. Reserving a disk slot here
 		// could block the primary from sending a replica back to this same node.
-		if s.Cfg.ReplicationFactor > 1 && s.Rep != nil && !strings.HasPrefix(r.URL.Path, "/internal/") {
+		if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && s.Rep != nil && !strings.HasPrefix(r.URL.Path, "/internal/") {
 			path := strings.TrimPrefix(r.URL.Path, "/")
 			if strings.HasPrefix(r.URL.Path, "/api/object/") {
 				path = strings.TrimPrefix(r.URL.Path, "/api/object/")

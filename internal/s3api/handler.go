@@ -24,6 +24,7 @@ import (
 	"github.com/rkislov/kladovka/internal/auth"
 	"github.com/rkislov/kladovka/internal/cluster"
 	"github.com/rkislov/kladovka/internal/config"
+	"github.com/rkislov/kladovka/internal/consensus"
 	"github.com/rkislov/kladovka/internal/metrics"
 	"github.com/rkislov/kladovka/internal/storage"
 	"github.com/rkislov/kladovka/internal/webui"
@@ -32,7 +33,8 @@ import (
 // Server wires storage, auth and cluster into HTTP handlers.
 type Server struct {
 	Cfg          *config.Config
-	Store        *storage.Store
+	Store        Backend
+	Consensus    *consensus.Store
 	Auth         *auth.Authenticator
 	Rep          *cluster.Replicator
 	Reg          *cluster.Registry
@@ -54,6 +56,9 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/internal/health", s.handleInternalHealth)
+	if s.Consensus != nil {
+		mux.HandleFunc("/internal/consensus/chunk/{hash}", s.Consensus.ChunkHandler)
+	}
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
 	mux.HandleFunc("/internal/polki/", s.handleInternalPolka)
 	mux.HandleFunc("/cluster", s.handleCluster)
@@ -69,12 +74,18 @@ func (s *Server) Handler() http.Handler {
 		http.Redirect(w, r, "/ui/", http.StatusFound)
 	})
 	mux.HandleFunc("/", s.handleS3)
-	return metrics.Middleware(s.auditRequests(s.protect(s.limitUploads(mux))))
+	return metrics.Middleware(s.auditRequests(s.protect(s.consensusRouting(s.limitUploads(mux)))))
 }
 
 func (s *Server) refreshMetrics() {
 	used, total, _ := s.Store.DiskUsage()
 	metrics.UpdateStorage(used, total)
+	if s.Consensus != nil {
+		state := s.Consensus.Status()
+		metrics.UpdateConsensus(true, s.Consensus.IsLeader(), state["applied_index"].(uint64), state["repair_pending"].(int), state["quorum"].(int))
+	} else {
+		metrics.UpdateConsensus(false, false, 0, 0, 0)
+	}
 	s.Reg.SetSelfUsed(used)
 	for _, n := range s.Reg.Snapshot() {
 		metrics.UpdateClusterNode(n.NodeID, n.Healthy, n.UsedBytes)
@@ -219,6 +230,7 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"quota":              map[string]int64{"used_bytes": quotaUsed, "total_bytes": quotaTotal},
+		"consensus":          s.consensusStatus(),
 		"limits":             map[string]int64{"max_object_size": s.Cfg.MaxObjectSize, "max_temp_bytes": s.Cfg.MaxTempBytes},
 		"node_id":            s.Cfg.NodeID,
 		"replication_factor": s.Cfg.ReplicationFactor,
@@ -263,6 +275,7 @@ func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"nodes":              s.Reg.Snapshot(),
+		"consensus":          s.consensusStatus(),
 		"this_node":          s.Cfg.NodeID,
 		"replication_factor": s.Cfg.ReplicationFactor,
 		"used_bytes":         used,
@@ -274,6 +287,10 @@ func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
+	if s.Consensus != nil {
+		http.Error(w, "legacy internal object API disabled in consensus mode", http.StatusConflict)
+		return
+	}
 	// /internal/object/{polka}/{key...}
 	path := strings.TrimPrefix(r.URL.Path, "/internal/object/")
 	polka, key, ok := splitPolkaKey(path)
@@ -478,7 +495,7 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 }
 
 func (s *Server) handleObject(w http.ResponseWriter, r *http.Request, polka, key string) {
-	if s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId")) {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId")) {
 		s.forwardToPrimary(w, r, polka, key)
 		return
 	}
@@ -500,7 +517,7 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request, polka, key
 }
 
 func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key string) {
-	if s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
 		// Forward to primary.
 		s.forwardToPrimary(w, r, polka, key)
 		return
@@ -523,7 +540,7 @@ func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key st
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
 	}
-	if s.Cfg.ReplicationFactor > 1 {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 		if err := s.Rep.ReplicatePut(r.Context(), polka, key, body, ct, meta.ETag); err != nil {
 			metrics.RecordReplicationFailed()
 			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "object stored locally but replication incomplete; retry the same PUT", r.URL.Path)
@@ -560,7 +577,7 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 		return
 	}
 	// Try peers if not found locally.
-	if s.Cfg.ReplicationFactor > 1 {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 		if s.tryFetchFromPeers(w, r, polka, key) {
 			return
 		}
@@ -571,7 +588,7 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 func (s *Server) headObject(w http.ResponseWriter, r *http.Request, polka, key string) {
 	meta, err := s.Store.HeadObject(polka, key)
 	if err != nil {
-		if s.Cfg.ReplicationFactor > 1 && s.tryFetchFromPeers(w, r, polka, key) {
+		if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && s.tryFetchFromPeers(w, r, polka, key) {
 			return
 		}
 		st, code, msg := mapStorageErr(err)
@@ -587,7 +604,7 @@ func (s *Server) headObject(w http.ResponseWriter, r *http.Request, polka, key s
 }
 
 func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, polka, key string) {
-	if s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
 		s.forwardToPrimary(w, r, polka, key)
 		return
 	}
@@ -597,7 +614,7 @@ func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, polka, key
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
 	}
-	if s.Cfg.ReplicationFactor > 1 {
+	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 		if err := s.Rep.ReplicateDelete(r.Context(), polka, key); err != nil {
 			metrics.RecordReplicationFailed()
 			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "local delete completed; replica delete incomplete, retry DELETE", r.URL.Path)

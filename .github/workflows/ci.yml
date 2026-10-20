@@ -17,6 +17,7 @@ jobs:
         run: |
           python3 scripts/smoke.py --binary ./bin/kladovka
           python3 scripts/smoke.py --binary ./bin/kladovka --access-policy
+          python3 scripts/consensus_smoke.py --binary ./bin/kladovka
   ui:
     runs-on: ubuntu-latest
     steps:

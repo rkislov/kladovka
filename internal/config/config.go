@@ -9,7 +9,9 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -19,9 +21,17 @@ import (
 
 // Config holds runtime settings for the Кладовка server.
 type Config struct {
-	ListenAddr string
-	DataRoot   string
-	Region     string
+	ClusterMode   string
+	RaftClusterID string
+	RaftBootstrap bool
+	RaftPeers     map[string]string
+	RaftListen    string
+	RaftTLSCert   string
+	RaftTLSKey    string
+	RaftTLSCA     string
+	ListenAddr    string
+	DataRoot      string
+	Region        string
 
 	// TLS (optional). When both CertFile and KeyFile are set, HTTPS is enabled.
 	TLSCertFile   string
@@ -77,7 +87,7 @@ func Load() (*Config, error) {
 			}
 		}
 	}
-	for _, key := range []string{"CLUSTER_VERIFY_TLS", "VERIFY_OBJECT_CHECKSUM"} {
+	for _, key := range []string{"CLUSTER_VERIFY_TLS", "VERIFY_OBJECT_CHECKSUM", "RAFT_BOOTSTRAP"} {
 		if v := strings.ToLower(os.Getenv(key)); v != "" {
 			switch v {
 			case "1", "true", "yes", "on", "0", "false", "no", "off":
@@ -88,6 +98,13 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
+		ClusterMode:          getenv("CLUSTER_MODE", "legacy"),
+		RaftBootstrap:        getenvBool("RAFT_BOOTSTRAP", false),
+		RaftClusterID:        os.Getenv("RAFT_CLUSTER_ID"),
+		RaftListen:           os.Getenv("RAFT_LISTEN_ADDR"),
+		RaftTLSCert:          os.Getenv("RAFT_TLS_CERT_FILE"),
+		RaftTLSKey:           os.Getenv("RAFT_TLS_KEY_FILE"),
+		RaftTLSCA:            os.Getenv("RAFT_TLS_CA_FILE"),
 		ListenAddr:           getenv("LISTEN_ADDR", ":8000"),
 		DataRoot:             getenv("DATA_ROOT", "./data"),
 		Region:               getenv("REGION", "us-east-1"),
@@ -171,6 +188,76 @@ func Load() (*Config, error) {
 	}
 	if cfg.ReplicationFactor > len(seen) {
 		return nil, fmt.Errorf("REPLICATION_FACTOR exceeds configured node count")
+	}
+	if cfg.ClusterMode != "legacy" && cfg.ClusterMode != "consensus" {
+		return nil, fmt.Errorf("CLUSTER_MODE must be legacy or consensus")
+	}
+	if cfg.ClusterMode == "consensus" {
+		if strconv.IntSize < 64 {
+			return nil, fmt.Errorf("consensus mode requires a 64-bit build")
+		}
+		if err := json.Unmarshal([]byte(os.Getenv("RAFT_PEERS")), &cfg.RaftPeers); err != nil {
+			return nil, fmt.Errorf("RAFT_PEERS must be a JSON object of NODE_ID to raft host:port")
+		}
+		if len(seen) != len(cfg.RaftPeers) || (len(seen) != 3 && len(seen) != 5) || cfg.ReplicationFactor != len(seen) {
+			return nil, fmt.Errorf("consensus requires 3 or 5 voters and RF equal to voter count")
+		}
+		if cfg.RaftClusterID == "" || len(cfg.ClusterToken) < 16 || cfg.MaxObjectSize <= 0 || cfg.MaxObjectSize > 1<<30 || !cfg.ClusterVerifyTLS {
+			return nil, fmt.Errorf("consensus requires RAFT_CLUSTER_ID, CLUSTER_TOKEN >=16 bytes, MAX_OBJECT_SIZE 1..1GiB and verified TLS")
+		}
+		addresses := map[string]bool{}
+		loopback := true
+		for id, addr := range cfg.RaftPeers {
+			host, port, err := net.SplitHostPort(addr)
+			n, e := strconv.Atoi(port)
+			if !seen[id] || err != nil || e != nil || n < 1 || n > 65535 || addresses[addr] {
+				return nil, fmt.Errorf("invalid or duplicate raft member/address")
+			}
+			addresses[addr] = true
+			ip := net.ParseIP(host)
+			if ip == nil || !ip.IsLoopback() {
+				loopback = false
+			}
+			nodeHost, _, err := net.SplitHostPort(id)
+			if err != nil {
+				return nil, fmt.Errorf("consensus NODE_ID must include explicit port")
+			}
+			ip = net.ParseIP(nodeHost)
+			if ip == nil || !ip.IsLoopback() {
+				loopback = false
+			}
+		}
+		if cfg.RaftListen == "" {
+			cfg.RaftListen = cfg.RaftPeers[cfg.NodeID]
+		}
+		if _, _, err := net.SplitHostPort(cfg.RaftListen); err != nil {
+			return nil, fmt.Errorf("invalid RAFT_LISTEN_ADDR")
+		}
+		tlsFiles := cfg.RaftTLSCert != "" && cfg.RaftTLSKey != "" && cfg.RaftTLSCA != ""
+		listenHost, _, _ := net.SplitHostPort(cfg.RaftListen)
+		listenIP := net.ParseIP(listenHost)
+		if !tlsFiles && (listenIP == nil || !listenIP.IsLoopback()) {
+			return nil, fmt.Errorf("plaintext raft must listen only on loopback")
+		}
+		httpHost, _, listenErr := net.SplitHostPort(cfg.ListenAddr)
+		httpIP := net.ParseIP(httpHost)
+		if listenErr != nil {
+			return nil, fmt.Errorf("invalid consensus LISTEN_ADDR")
+		}
+		if (httpIP == nil || !httpIP.IsLoopback()) && self.Scheme != "https" {
+			return nil, fmt.Errorf("consensus HTTP requires HTTPS or an explicit loopback listener")
+		}
+		if !tlsFiles && (!loopback || cfg.RaftTLSCert != "" || cfg.RaftTLSKey != "" || cfg.RaftTLSCA != "") {
+			return nil, fmt.Errorf("non-loopback consensus requires RAFT_TLS_CERT_FILE, RAFT_TLS_KEY_FILE and RAFT_TLS_CA_FILE")
+		}
+		if !loopback {
+			for _, raw := range append([]string{cfg.NodeURL}, cfg.PeerNodes...) {
+				u, _ := url.Parse(raw)
+				if u.Scheme != "https" {
+					return nil, fmt.Errorf("non-loopback consensus requires HTTPS node URLs")
+				}
+			}
+		}
 	}
 	return cfg, nil
 }

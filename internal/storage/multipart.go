@@ -345,3 +345,14 @@ func (s *Store) PinMultipart(id string) (func(), error) {
 		}
 	}, nil
 }
+
+// MultipartTarget resolves staged data without exposing its on-disk metadata.
+func (s *Store) MultipartTarget(id string) (string, string, error) {
+	s.multipartMu.Lock()
+	defer s.multipartMu.Unlock()
+	m, err := s.loadMultipart(id)
+	if err != nil {
+		return "", "", err
+	}
+	return m.Polka, m.Key, nil
+}

@@ -46,3 +46,46 @@ func TestSeparateAdministratorConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestConsensusConfiguration(t *testing.T) {
+	setup := func(t *testing.T) {
+		t.Setenv("LISTEN_ADDR", "127.0.0.1:18081")
+		t.Setenv("RAFT_LISTEN_ADDR", "")
+		t.Setenv("CLUSTER_MODE", "consensus")
+		t.Setenv("RAFT_BOOTSTRAP", "true")
+		t.Setenv("RAFT_CLUSTER_ID", "test-new-cluster")
+		t.Setenv("NODE_ID", "127.0.0.1:18081")
+		t.Setenv("NODE_URL", "http://127.0.0.1:18081")
+		t.Setenv("PEER_NODES", "http://127.0.0.1:18082,http://127.0.0.1:18083")
+		t.Setenv("REPLICATION_FACTOR", "3")
+		t.Setenv("RAFT_PEERS", `{"127.0.0.1:18081":"127.0.0.1:19081","127.0.0.1:18082":"127.0.0.1:19082","127.0.0.1:18083":"127.0.0.1:19083"}`)
+		t.Setenv("CLUSTER_TOKEN", "test-cluster-token-strong")
+		t.Setenv("MAX_OBJECT_SIZE", "1073741824")
+		t.Setenv("RAFT_TLS_CERT_FILE", "")
+		t.Setenv("RAFT_TLS_KEY_FILE", "")
+		t.Setenv("RAFT_TLS_CA_FILE", "")
+		t.Setenv("CLUSTER_VERIFY_TLS", "true")
+		t.Setenv("ACCESS_POLICY_FILE", "")
+		t.Setenv("ADMIN_USER", "")
+		t.Setenv("ADMIN_PASSWORD", "")
+	}
+	t.Run("valid", func(t *testing.T) {
+		setup(t)
+		c, e := Load()
+		if e != nil || !c.RaftBootstrap || c.RaftListen != "127.0.0.1:19081" {
+			t.Fatalf("config: %+v %v", c, e)
+		}
+	})
+	for _, tc := range []struct{ key, value string }{
+		{"REPLICATION_FACTOR", "2"}, {"RAFT_CLUSTER_ID", ""}, {"CLUSTER_TOKEN", "short"}, {"RAFT_PEERS", `{}`}, {"MAX_OBJECT_SIZE", "0"}, {"MAX_OBJECT_SIZE", "2147483648"}, {"CLUSTER_VERIFY_TLS", "false"}, {"RAFT_BOOTSTRAP", "invalid"}, {"RAFT_LISTEN_ADDR", "0.0.0.0:19081"}, {"LISTEN_ADDR", ":18081"},
+		{"RAFT_PEERS", `{"127.0.0.1:18081":"0.0.0.0:19081","127.0.0.1:18082":"127.0.0.1:19082","127.0.0.1:18083":"127.0.0.1:19083"}`},
+	} {
+		t.Run(tc.key+tc.value, func(t *testing.T) {
+			setup(t)
+			t.Setenv(tc.key, tc.value)
+			if _, e := Load(); e == nil {
+				t.Fatal("unsafe consensus configuration accepted")
+			}
+		})
+	}
+}
