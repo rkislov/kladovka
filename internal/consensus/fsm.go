@@ -35,23 +35,28 @@ type Record struct {
 	Index   uint64             `json:"index"`
 }
 type command struct {
-	Kind        string       `json:"kind"`
-	Polka       string       `json:"polka,omitempty"`
-	Key         string       `json:"key,omitempty"`
-	Record      Record       `json:"record,omitempty"`
-	Hash        string       `json:"hash,omitempty"`
-	Data        []byte       `json:"data,omitempty"`
-	Replacement *Replacement `json:"replacement,omitempty"`
+	Kind        string              `json:"kind"`
+	Polka       string              `json:"polka,omitempty"`
+	Key         string              `json:"key,omitempty"`
+	Record      Record              `json:"record,omitempty"`
+	Hash        string              `json:"hash,omitempty"`
+	Data        []byte              `json:"data,omitempty"`
+	Replacement *Replacement        `json:"replacement,omitempty"`
+	Change      *MembershipChange   `json:"membership_change,omitempty"`
+	Topology    map[string]Endpoint `json:"topology,omitempty"`
 }
 type state struct {
-	Buckets          map[string]bool   `json:"buckets"`
-	Records          map[string]Record `json:"records"`
-	Chunks           map[string]int64  `json:"chunks"`
-	ChunkLogs        map[string]uint64 `json:"chunk_logs"`
-	Index            uint64            `json:"index"`
-	Replacement      *Replacement      `json:"replacement,omitempty"`
-	Retired          []string          `json:"retired,omitempty"`
-	RetiredAddresses []string          `json:"retired_addresses,omitempty"`
+	Buckets          map[string]bool             `json:"buckets"`
+	Records          map[string]Record           `json:"records"`
+	Chunks           map[string]int64            `json:"chunks"`
+	ChunkLogs        map[string]uint64           `json:"chunk_logs"`
+	Index            uint64                      `json:"index"`
+	Replacement      *Replacement                `json:"replacement,omitempty"`
+	Retired          []string                    `json:"retired,omitempty"`
+	RetiredAddresses []string                    `json:"retired_addresses,omitempty"`
+	Topology         map[string]Endpoint         `json:"topology,omitempty"`
+	Change           *MembershipChange           `json:"membership_change,omitempty"`
+	CompletedChanges map[string]MembershipChange `json:"completed_changes,omitempty"`
 }
 type machine struct {
 	mu           sync.RWMutex
@@ -135,7 +140,51 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 	defer m.mu.Unlock()
 	m.state.Index = l.Index
 	switch c.Kind {
+	case "membership_change":
+		if c.Change == nil || c.Topology == nil || (c.Change.Kind != "add" && c.Change.Kind != "remove") {
+			return errors.New("missing membership intent")
+		}
+		if (m.state.Change != nil && !m.state.Change.Done) || (m.state.Replacement != nil && !m.state.Replacement.Done) {
+			return errors.New("membership operation pending")
+		}
+		if _, exists := m.state.CompletedChanges[c.Change.ID]; exists {
+			return errors.New("operation ID already used")
+		}
+		if m.state.Topology == nil {
+			m.state.Topology = c.Topology
+		}
+		change := *c.Change
+		if change.Kind == "add" {
+			m.state.Topology[change.Node.NodeID] = change.Node
+		} else if change.Kind != "remove" {
+			return errors.New("unknown membership change")
+		}
+		m.state.Change = &change
+		return nil
+	case "membership_done":
+		if c.Change == nil || m.state.Change == nil || c.Change.ID != m.state.Change.ID {
+			return errors.New("membership intent differs")
+		}
+		change := m.state.Change
+		if !change.Done {
+			if change.Kind == "remove" {
+				member := m.state.Topology[change.Node.NodeID]
+				member.Removed = true
+				m.state.Topology[member.NodeID] = member
+				m.state.Retired = append(m.state.Retired, member.RaftID)
+				m.state.RetiredAddresses = append(m.state.RetiredAddresses, member.Address)
+			}
+			change.Done = true
+			if m.state.CompletedChanges == nil {
+				m.state.CompletedChanges = map[string]MembershipChange{}
+			}
+			m.state.CompletedChanges[change.ID] = *change
+		}
+		return nil
 	case "replace":
+		if m.state.Change != nil && !m.state.Change.Done {
+			return errors.New("membership operation pending")
+		}
 		if c.Replacement == nil {
 			return errors.New("missing replacement")
 		}
@@ -159,6 +208,13 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 			m.state.RetiredAddresses = append(m.state.RetiredAddresses, m.state.Replacement.OldAddress)
 		}
 		m.state.Replacement.Done = true
+		if m.state.Topology != nil {
+			r := m.state.Replacement
+			member := m.state.Topology[r.NodeID]
+			member.RaftID = r.NewID
+			member.Address = r.Address
+			m.state.Topology[r.NodeID] = member
+		}
 		return nil
 
 	case "chunk":

@@ -31,6 +31,10 @@ func (s *Server) consensusRouting(next http.Handler) http.Handler {
 				return
 			}
 		}
+		if !s.Consensus.CanRoute() {
+			writeS3Error(w, 503, "ServiceUnavailable", "node is not an admitted voter", path)
+			return
+		}
 		if !s.Consensus.IsLeader() {
 			base := s.Consensus.LeaderURL()
 			hops, _ := strconv.Atoi(r.Header.Get("X-Kladovka-Forward-Hops"))
@@ -109,4 +113,53 @@ func (s *Server) handleReplaceNode(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(202)
 	_ = json.NewEncoder(w).Encode(s.Consensus.Status())
+}
+
+func (s *Server) handleMembership(w http.ResponseWriter, r *http.Request) {
+	p, ok := requestPrincipal(r)
+	if !ok || p.Role != "admin" {
+		http.Error(w, "admin required", 403)
+		return
+	}
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	var input struct {
+		RequestID string `json:"request_id"`
+		HTTPURL   string `json:"http_url"`
+		NodeID    string `json:"node_id"`
+		RaftID    string `json:"raft_id"`
+	}
+	payload, e := io.ReadAll(http.MaxBytesReader(w, r.Body, 4096))
+	if e != nil || verifyPayload(r, payload) != nil {
+		http.Error(w, "invalid membership body", 400)
+		return
+	}
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	d.DisallowUnknownFields()
+	if d.Decode(&input) != nil || d.Decode(new(any)) != io.EOF {
+		http.Error(w, "invalid membership request", 400)
+		return
+	}
+	kind := strings.TrimPrefix(r.URL.Path, "/api/cluster/")
+	if (kind == "add" && input.NodeID != "") || (kind == "remove" && (input.HTTPURL != "" || input.RaftID != "")) {
+		http.Error(w, "unexpected membership fields", 400)
+		return
+	}
+	if e = s.Consensus.ChangeMembership(input.RequestID, kind, input.HTTPURL, input.NodeID, input.RaftID); e != nil {
+		http.Error(w, e.Error(), 409)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_ = json.NewEncoder(w).Encode(s.Consensus.Status())
+}
+
+func (s *Server) replicationFactor() int {
+	if s.Consensus != nil {
+		s.Consensus.SyncTopology()
+		return s.Consensus.TargetRF()
+	}
+	return s.Cfg.ReplicationFactor
 }

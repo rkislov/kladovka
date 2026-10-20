@@ -39,6 +39,8 @@ type candidate struct {
 	RaftID     string `json:"raft_id"`
 	Address    string `json:"address"`
 	ReadyIndex uint64 `json:"ready_index"`
+	HTTPURL    string `json:"http_url"`
+	Protocol   int    `json:"membership_protocol"`
 }
 
 func slotForID(id string) string { slot, _, _ := strings.Cut(id, "#"); return slot }
@@ -89,62 +91,82 @@ func (s *Store) replacement() *Replacement {
 
 // CandidateHandler never grants votes. The quorum leader alone admits this incarnation.
 func (s *Store) CandidateHandler(w http.ResponseWriter, r *http.Request) {
+	if !validIncarnation(s.cfg.NodeID, string(s.localID)) || s.cfg.RaftReplacementAddr == "" {
+		http.Error(w, "not a joining candidate", 409)
+		return
+	}
+	s.ReadyHandler(w, r)
+}
+
+// ReadyHandler verifies a pinned committed generation for membership operations.
+func (s *Store) ReadyHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
 	address := s.cfg.RaftReplacementAddr
-	if address == "" || !validIncarnation(s.cfg.NodeID, string(s.localID)) {
-		http.Error(w, "not a replacement candidate", 409)
-		return
+	if address == "" {
+		address = s.cfg.RaftPeers[s.cfg.NodeID]
 	}
-	info := candidate{ClusterID: s.cfg.RaftClusterID, NodeID: s.cfg.NodeID, RaftID: string(s.localID), Address: address}
+	info := candidate{ClusterID: s.cfg.RaftClusterID, NodeID: s.cfg.NodeID, RaftID: string(s.localID), Address: address, HTTPURL: strings.TrimRight(s.cfg.NodeURL, "/"), Protocol: 2}
 	if r.URL.Query().Get("verify") == "true" {
-		snap, e := s.fsm.Snapshot()
+		index, e := s.verifiedIndex(r.Context())
 		if e != nil {
-			http.Error(w, e.Error(), 503)
+			http.Error(w, "committed data not ready", 503)
 			return
 		}
-		defer snap.Release()
-		st := snap.(*snapshot).s
-		for hash := range st.Chunks {
-			if r.Context().Err() != nil {
-				return
-			}
-			if _, e := s.fsm.chunk(hash); e != nil {
-				http.Error(w, "candidate data incomplete", 503)
-				return
-			}
-		}
-		info.ReadyIndex = st.Index
+		info.ReadyIndex = index
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(info)
 }
+func (s *Store) verifiedIndex(ctx context.Context) (uint64, error) {
+	snap, e := s.fsm.Snapshot()
+	if e != nil {
+		return 0, e
+	}
+	defer snap.Release()
+	st := snap.(*snapshot).s
+	for hash := range st.Chunks {
+		if ctx.Err() != nil {
+			return 0, ctx.Err()
+		}
+		if _, e := s.fsm.chunk(hash); e != nil {
+			return 0, e
+		}
+	}
+	return st.Index, nil
+}
 func (s *Store) candidateInfo(slot string, verify bool) (candidate, error) {
+	return s.peerInfo(s.nodeURL(slot), slot, "candidate", verify)
+}
+func (s *Store) peerInfo(base, slot, path string, verify bool) (candidate, error) {
 	var info candidate
-	base := s.reg.GetURL(slot)
 	if base == "" {
-		return info, errors.New("unknown slot")
+		return info, errors.New("unknown member endpoint")
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 	defer cancel()
-	req, e := http.NewRequestWithContext(ctx, "GET", base+"/internal/consensus/candidate?verify="+fmt.Sprint(verify), nil)
+	req, e := http.NewRequestWithContext(ctx, "GET", base+"/internal/consensus/"+path+"?verify="+fmt.Sprint(verify), nil)
 	if e != nil {
 		return info, e
 	}
 	s.reg.Authorize(req)
-	resp, e := s.reg.Client().Do(req)
+	client := *s.reg.Client()
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return errors.New("membership endpoint redirects are forbidden")
+	}
+	resp, e := client.Do(req)
 	if e != nil {
 		return info, e
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return info, errors.New("replacement candidate unavailable")
+		return info, errors.New("member verification unavailable")
 	}
 	e = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&info)
-	if e == nil && (info.ClusterID != s.cfg.RaftClusterID || info.NodeID != slot || !validIncarnation(slot, info.RaftID)) {
-		e = errors.New("candidate identity differs")
+	if e == nil && (info.ClusterID != s.cfg.RaftClusterID || info.NodeID != slot || (path == "candidate" && !validIncarnation(slot, info.RaftID))) {
+		e = errors.New("member identity differs")
 	}
 	return info, e
 }
@@ -164,8 +186,11 @@ func (s *Store) Replace(slot, newID string) error {
 	if e := s.Barrier(); e != nil {
 		return e
 	}
-	if slot == s.cfg.NodeID || s.cfg.RaftPeers[slot] == "" || !validIncarnation(slot, newID) {
+	if slot == s.cfg.NodeID || s.nodeURL(slot) == "" || !validIncarnation(slot, newID) {
 		return errors.New("replace a configured non-leader slot with a fresh incarnation")
+	}
+	if op := s.membershipChange(); op != nil && !op.Done {
+		return errors.New("membership operation pending")
 	}
 	if r := s.replacement(); r != nil && r.NewID == newID {
 		return nil

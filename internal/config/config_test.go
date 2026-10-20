@@ -78,6 +78,24 @@ func TestConsensusConfiguration(t *testing.T) {
 			t.Fatalf("config: %+v %v", c, e)
 		}
 	})
+	t.Run("additional slot retains original seeds", func(t *testing.T) {
+		setup(t)
+		t.Setenv("RAFT_BOOTSTRAP", "false")
+		t.Setenv("RAFT_JOIN", "true")
+		t.Setenv("NODE_ID", "127.0.0.1:18084")
+		t.Setenv("NODE_URL", "http://127.0.0.1:18084")
+		t.Setenv("LISTEN_ADDR", "127.0.0.1:18084")
+		t.Setenv("PEER_NODES", "http://127.0.0.1:18081,http://127.0.0.1:18082,http://127.0.0.1:18083")
+		t.Setenv("RAFT_REPLACEMENT_ADDR", "127.0.0.1:19084")
+		c, e := Load()
+		if e != nil || c.ReplicationFactor != 3 || len(c.RaftPeers) != 3 {
+			t.Fatalf("additional slot: %+v %v", c, e)
+		}
+		t.Setenv("RAFT_BOOTSTRAP", "true")
+		if _, e = Load(); e == nil {
+			t.Fatal("additional slot bootstrapped")
+		}
+	})
 	t.Run("replacement", func(t *testing.T) {
 		setup(t)
 		t.Setenv("RAFT_BOOTSTRAP", "false")

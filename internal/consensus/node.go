@@ -40,6 +40,7 @@ type Store struct {
 	pending          int
 	repairError      string
 	replacementError string
+	membershipError  string
 	cancel           context.CancelFunc
 	done             chan struct{}
 	closeOnce        sync.Once
@@ -285,7 +286,7 @@ func (s *Store) Close() error {
 }
 func (s *Store) LeaderURL() string {
 	_, id := s.raft.LeaderWithID()
-	return s.reg.GetURL(slotForID(string(id)))
+	return s.nodeURL(slotForID(string(id)))
 }
 func (s *Store) IsLeader() bool { return s.raft.State() == raft.Leader }
 func (s *Store) Barrier() error {
@@ -315,7 +316,7 @@ func (s *Store) apply(c command) error {
 }
 func (s *Store) Status() map[string]any {
 	s.repairMu.Lock()
-	pending, last, replacementError := s.pending, s.repairError, s.replacementError
+	pending, last, replacementError, membershipError := s.pending, s.repairError, s.replacementError, s.membershipError
 	s.repairMu.Unlock()
 	s.fsm.mu.RLock()
 	index := s.fsm.state.Index
@@ -326,5 +327,5 @@ func (s *Store) Status() map[string]any {
 		}
 	}
 	s.fsm.mu.RUnlock()
-	return map[string]any{"mode": "consensus", "term": s.raft.Stats()["term"], "state": s.raft.State().String(), "leader": s.LeaderURL(), "applied_index": index, "repair_pending": pending, "repair_error": last, "tombstones": tombstones, "raft_id": string(s.localID), "voters": s.voterCount(), "quorum": s.requiredQuorum(), "members": s.members(), "replacement": s.replacement(), "replacement_error": replacementError}
+	return map[string]any{"mode": "consensus", "term": s.raft.Stats()["term"], "state": s.raft.State().String(), "leader": s.LeaderURL(), "applied_index": index, "repair_pending": pending, "repair_error": last, "tombstones": tombstones, "raft_id": string(s.localID), "voters": s.voterCount(), "quorum": s.requiredQuorum(), "members": s.members(), "replacement": s.replacement(), "replacement_error": replacementError, "membership_change": s.membershipChange(), "membership_error": membershipError, "target_rf": s.TargetRF()}
 }

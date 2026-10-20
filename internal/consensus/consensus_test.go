@@ -69,6 +69,7 @@ func newFixture(t *testing.T) *fixture {
 			}
 			mux := http.NewServeMux()
 			mux.HandleFunc("/internal/consensus/chunk/{hash}", s.ChunkHandler)
+			mux.HandleFunc("/internal/consensus/ready", s.ReadyHandler)
 			mux.HandleFunc("/internal/consensus/candidate", func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Query().Get("verify") == "true" && !ready.Load() {
 					http.Error(w, "not ready", 503)

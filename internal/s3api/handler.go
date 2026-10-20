@@ -59,6 +59,9 @@ func (s *Server) Handler() http.Handler {
 	if s.Consensus != nil {
 		mux.HandleFunc("/internal/consensus/chunk/{hash}", s.Consensus.ChunkHandler)
 		mux.HandleFunc("/internal/consensus/candidate", s.Consensus.CandidateHandler)
+		mux.HandleFunc("/internal/consensus/ready", s.Consensus.ReadyHandler)
+		mux.HandleFunc("/api/cluster/add", s.handleMembership)
+		mux.HandleFunc("/api/cluster/remove", s.handleMembership)
 		mux.HandleFunc("/api/cluster/replace", s.handleReplaceNode)
 	}
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
@@ -222,6 +225,9 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := metrics.Collect()
+	if s.Consensus != nil {
+		s.Consensus.SyncTopology()
+	}
 	nodes := s.Reg.Snapshot()
 	healthy := 0
 	for _, n := range nodes {
@@ -235,7 +241,7 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 		"consensus":          s.consensusStatus(),
 		"limits":             map[string]int64{"max_object_size": s.Cfg.MaxObjectSize, "max_temp_bytes": s.Cfg.MaxTempBytes},
 		"node_id":            s.Cfg.NodeID,
-		"replication_factor": s.Cfg.ReplicationFactor,
+		"replication_factor": s.replicationFactor(),
 		"nodes_total":        len(nodes),
 		"nodes_healthy":      healthy,
 		"nodes":              nodes,
@@ -272,6 +278,9 @@ func (s *Server) handleInternalHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
+	if s.Consensus != nil {
+		s.Consensus.SyncTopology()
+	}
 	used, _, _ := s.Store.DiskUsage()
 	s.Reg.SetSelfUsed(used)
 	w.Header().Set("Content-Type", "application/json")
@@ -279,7 +288,7 @@ func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
 		"nodes":              s.Reg.Snapshot(),
 		"consensus":          s.consensusStatus(),
 		"this_node":          s.Cfg.NodeID,
-		"replication_factor": s.Cfg.ReplicationFactor,
+		"replication_factor": s.replicationFactor(),
 		"used_bytes":         used,
 		"terminology": map[string]string{
 			"bucket": "полка",

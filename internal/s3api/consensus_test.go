@@ -33,6 +33,18 @@ func TestReplacementRejectsUnauthorizedAndTamperedRequests(t *testing.T) {
 			// Consensus is deliberately absent: every rejected request must stop before
 			// it can invoke the membership mutation.
 			s.handleReplaceNode(w, r)
+			for _, path := range []string{"/api/cluster/add", "/api/cluster/remove"} {
+				mr := httptest.NewRequest("POST", path, strings.NewReader(tc.body))
+				mr.Header.Set("X-Amz-Content-Sha256", tc.hash)
+				if tc.role != "" {
+					setPrincipal(mr, auth.Principal{ID: "test", Role: tc.role})
+				}
+				mw := httptest.NewRecorder()
+				s.handleMembership(mw, mr)
+				if mw.Code != tc.code {
+					t.Fatalf("%s status %d want %d", path, mw.Code, tc.code)
+				}
+			}
 			if w.Code != tc.code {
 				t.Fatalf("status %d, want %d: %s", w.Code, tc.code, w.Body.String())
 			}
