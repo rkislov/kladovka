@@ -367,13 +367,17 @@ func (s *Server) deleteBatchKey(ctx context.Context, bucket, key string) *delete
 		}
 		return &deleteFailure{key, "ServiceUnavailable", "primary deletion unconfirmed; upgrade all legacy nodes"}
 	}
-	err := s.Store.DeleteObject(bucket, key)
+	if s.Cfg.VersioningEnabled && s.Consensus == nil {
+		s.historyMu.Lock()
+		defer s.historyMu.Unlock()
+	}
+	deleted, err := s.trash(bucket, key)
 	if err != nil && !errors.Is(err, storage.ErrObjectNotFound) {
 		_, code, message := mapStorageErr(err)
 		return &deleteFailure{key, code, message}
 	}
 	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
-		if err = s.Rep.ReplicateDelete(ctx, bucket, key); err != nil {
+		if err = s.Rep.ReplicateDelete(ctx, bucket, key, deleted); err != nil {
 			metrics.RecordReplicationFailed()
 			return &deleteFailure{key, "ServiceUnavailable", "local delete completed but replica deletion unconfirmed"}
 		}

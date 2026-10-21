@@ -68,7 +68,7 @@ def main():
             raise RuntimeError('timed out: '+description)
 
         def start(i, bootstrap):
-            env = {**os.environ, 'CLUSTER_MODE': 'consensus', 'RAFT_CLUSTER_ID': 'isolated-smoke-cluster',
+            env = {**os.environ, 'VERSIONING_ENABLED': 'false', 'CLUSTER_MODE': 'consensus', 'RAFT_CLUSTER_ID': 'isolated-smoke-cluster',
                    'RAFT_PEERS': json.dumps(peers), 'RAFT_BOOTSTRAP': str(bootstrap).lower(),
                    'RAFT_JOIN': str(i in replacements).lower(), 'RAFT_REPLACEMENT_ADDR': replacements.get(i, ''),
                    'RAFT_LISTEN_ADDR': replacements.get(i, peers.get(ids[i], "")), 'RAFT_TLS_CERT_FILE': '', 'RAFT_TLS_KEY_FILE': '', 'RAFT_TLS_CA_FILE': '',

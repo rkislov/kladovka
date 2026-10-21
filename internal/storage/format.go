@@ -32,7 +32,7 @@ func (s *Store) legacyFormat() (bool, error) {
 	if err = json.Unmarshal(body, &format); err != nil {
 		return false, err
 	}
-	if format.Version != 2 {
+	if format.Version != 2 && format.Version != 3 {
 		return false, fmt.Errorf("unsupported storage format %d", format.Version)
 	}
 	return false, nil

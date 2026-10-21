@@ -14,7 +14,9 @@ export async function addBatch({presentation,input}) {
   text('КЛАДОВКА',64,30,400,28,15,true,'#678174');
   text(d.title,64,85,art?670:1150,art?95:74,art?36:42,true);
   text(d.subtitle,66,art?190:171,art?650:1140,65,24,false,'#53685D');
-  if(d.number===4){
+  if(d.number===25){
+   s.images.add({path:`${root}/docs/screenshots/ui-version-history.png`,fit:"contain",position:{left:180,top:245,width:920,height:414}});
+  } else if(d.number===4){
    s.images.add({path:`${root}/docs/screenshots/ui-light.png`,fit:'contain',position:{left:64,top:255,width:850,height:400}});
    text('Панель администратора\n\nДоступ к полкам\nи объектам\n\nКонтроль ресурсов',950,295,270,280,23);
   } else if(d.number===7){

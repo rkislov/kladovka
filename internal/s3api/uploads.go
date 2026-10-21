@@ -18,7 +18,7 @@ type uploadReservation struct{ held int64 }
 
 func (s *Server) limitUploads(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut && !(r.Method == http.MethodPost && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId") || r.URL.Query().Has("delete"))) {
+		if r.Method != http.MethodPut && !(r.Method == http.MethodPost && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId") || r.URL.Query().Has("delete") || strings.HasPrefix(r.URL.Path, "/api/versions/"))) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -29,6 +29,7 @@ func (s *Server) limitUploads(next http.Handler) http.Handler {
 			if strings.HasPrefix(r.URL.Path, "/api/object/") {
 				path = strings.TrimPrefix(r.URL.Path, "/api/object/")
 			}
+			path = strings.TrimPrefix(path, "api/versions/")
 			polka, key, ok := splitPolkaKey(path)
 			if ok && !s.Rep.IsPrimary(polka, key) {
 				next.ServeHTTP(w, r)
