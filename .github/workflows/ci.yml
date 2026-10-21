@@ -28,11 +28,15 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p test_load_pilot.py
           python3 scripts/load_pilot.py --binary ./bin/kladovka --stages 10,25 --samples 3 --output load-pilot-ci.json
+      - name: Consensus materialization catch-up and restart
+        run: python3 scripts/materialization_pilot.py --binary ./bin/kladovka --objects 32 --output materialization-ci.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: load-pilot-${{ github.event_name }}
-          path: load-pilot-ci.json
+          path: |
+            load-pilot-ci.json
+            materialization-ci.json
           if-no-files-found: ignore
   ui:
     runs-on: ubuntu-latest
