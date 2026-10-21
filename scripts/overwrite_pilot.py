@@ -115,7 +115,24 @@ def run(args, report, root):
         if platform.system() == 'Darwin':
             report['vmmap'] = [subprocess.run(['vmmap', '-summary', str(pid)], text=True, capture_output=True, timeout=30).__dict__
                                for pid in controls['pids']()]
-        leader = next(i for i, s in enumerate(states()) if s['state'] == 'Leader')
+        # vmmap can suspend its target long enough to trigger a Raft election.
+        # This diagnostic is outside measurement; wait for a routable leader
+        # before choosing which follower to stop.
+        deadline, stable, previous = time.monotonic()+30, 0, None
+        while True:
+            current = states()
+            leaders = [i for i, s in enumerate(current) if s['state'] == 'Leader']
+            try:
+                client.head_bucket(Bucket='plateau')
+                leader = leaders[0] if len(leaders) == 1 else None
+            except (ClientError, BotoCoreError):
+                leader = None
+            stable = stable+1 if leader is not None and leader == previous else 0
+            previous = leader
+            if stable >= 3:
+                break
+            require(time.monotonic() < deadline, 'no stable leader after memory diagnostics')
+            time.sleep(.2)
         offline = next(i for i in range(3) if i not in (topology['target_node'], leader))
         controls['stop'](offline)
         # The failure transition is outside the measured write phase. Require a
@@ -167,7 +184,7 @@ def main():
                 run(args, report, Path(tmp))
             report['status'] = 'passed'
         except BaseException as error:
-            report.update(status='failed', error=str(error))
+            report.update(status='failed', error=type(error).__name__+': '+str(error))
             raise
         finally:
             report['finished_utc'] = datetime.now(timezone.utc).isoformat()
