@@ -1,0 +1,40 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/rkislov/kladovka/internal/consensus
+cpu: Apple M4
+BenchmarkProfileOverwriteHeap
+    profile_test.go:182: epoch=0 heap_alloc=12561512 heap_objects=4780 goroutines=34
+    profile_test.go:182: epoch=1 heap_alloc=12711200 heap_objects=4891 goroutines=34
+    profile_test.go:182: epoch=2 heap_alloc=12978984 heap_objects=4890 goroutines=34
+    profile_test.go:182: epoch=3 heap_alloc=13600232 heap_objects=5118 goroutines=34
+    profile_test.go:182: epoch=4 heap_alloc=14201696 heap_objects=5196 goroutines=34
+    profile_test.go:182: epoch=5 heap_alloc=13818136 heap_objects=5222 goroutines=34
+    profile_test.go:182: epoch=6 heap_alloc=14163256 heap_objects=5418 goroutines=34
+    profile_test.go:182: epoch=7 heap_alloc=14590864 heap_objects=5444 goroutines=34
+    profile_test.go:182: epoch=8 heap_alloc=14595104 heap_objects=5305 goroutines=34
+    profile_test.go:182: epoch=9 heap_alloc=14327184 heap_objects=5360 goroutines=34
+    profile_test.go:182: epoch=10 heap_alloc=14472160 heap_objects=5468 goroutines=34
+    profile_test.go:182: epoch=11 heap_alloc=14665840 heap_objects=5420 goroutines=34
+    profile_test.go:182: epoch=12 heap_alloc=14564968 heap_objects=5412 goroutines=34
+    profile_test.go:182: epoch=13 heap_alloc=14670824 heap_objects=5440 goroutines=34
+    profile_test.go:182: epoch=14 heap_alloc=15007560 heap_objects=5240 goroutines=34
+    profile_test.go:182: epoch=15 heap_alloc=15540712 heap_objects=5396 goroutines=34
+    profile_test.go:182: epoch=16 heap_alloc=15308760 heap_objects=5471 goroutines=34
+    profile_test.go:182: epoch=17 heap_alloc=15428152 heap_objects=5444 goroutines=34
+    profile_test.go:182: epoch=18 heap_alloc=13728328 heap_objects=5285 goroutines=34
+    profile_test.go:182: epoch=19 heap_alloc=15193560 heap_objects=5492 goroutines=34
+    profile_test.go:182: epoch=20 heap_alloc=16125088 heap_objects=5686 goroutines=34
+    profile_test.go:182: epoch=21 heap_alloc=17639400 heap_objects=5661 goroutines=34
+    profile_test.go:182: epoch=22 heap_alloc=16153264 heap_objects=6199 goroutines=34
+    profile_test.go:182: epoch=23 heap_alloc=15540440 heap_objects=5575 goroutines=34
+    profile_test.go:182: epoch=24 heap_alloc=15209312 heap_objects=5515 goroutines=34
+    profile_test.go:182: epoch=25 heap_alloc=15196672 heap_objects=5377 goroutines=34
+    profile_test.go:182: epoch=26 heap_alloc=15502648 heap_objects=5578 goroutines=34
+    profile_test.go:182: epoch=27 heap_alloc=15001432 heap_objects=5427 goroutines=34
+    profile_test.go:182: epoch=28 heap_alloc=15407400 heap_objects=5461 goroutines=34
+    profile_test.go:182: epoch=29 heap_alloc=15297824 heap_objects=5580 goroutines=34
+    profile_test.go:182: epoch=30 heap_alloc=14655872 heap_objects=5977 goroutines=34
+    profile_test.go:182: epoch=31 heap_alloc=15823784 heap_objects=5535 goroutines=34
+BenchmarkProfileOverwriteHeap-10    	       1	320648361750 ns/op
+PASS
+ok  	github.com/rkislov/kladovka/internal/consensus	321.413s

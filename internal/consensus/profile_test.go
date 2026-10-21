@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -113,6 +115,16 @@ func BenchmarkProfileSustainedPUT(b *testing.B) {
 // Eight quiescent checkpoints isolate retained Go heap from Bolt mmap RSS.
 // Explicit pruning and GC are diagnostic only, not production load behavior.
 func BenchmarkProfileOverwriteHeap(b *testing.B) {
+	epochs := 8
+	if value := os.Getenv("KLADOVKA_OVERWRITE_EPOCHS"); value != "" {
+		var err error
+		epochs, err = strconv.Atoi(value)
+		if err != nil || epochs < 8 || epochs > 128 {
+			b.Fatal("KLADOVKA_OVERWRITE_EPOCHS must be 8..128")
+		}
+	}
+	stop := testprofile.Start(b, "overwrite")
+	defer stop()
 	f := newFixture(b)
 	s := f.nodes[f.leader(b)]
 	if err := s.CreatePolka("plateau"); err != nil {
@@ -123,7 +135,7 @@ func BenchmarkProfileOverwriteHeap(b *testing.B) {
 		bodies[w] = make([]byte, 1<<20)
 		rand.New(rand.NewSource(int64(w + 1))).Read(bodies[w])
 	}
-	for epoch := 0; epoch < 8*b.N; epoch++ {
+	for epoch := 0; epoch < epochs*b.N; epoch++ {
 		for round := 0; round < 8; round++ {
 			var wg sync.WaitGroup
 			errs := make(chan error, 4)
