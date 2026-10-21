@@ -49,7 +49,7 @@ func BenchmarkProfileOverwriteLIST(b *testing.B) {
 	defer stop()
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for i := 0; i < 50*b.N; i++ {
 		body[0] = byte(i)
 		key := fmt.Sprintf("object-%06d", i%100)
 		meta, err := s.PutObject("profile", key, bytes.NewReader(body), "application/octet-stream")
