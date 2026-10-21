@@ -32,6 +32,7 @@ import (
 
 // Server wires storage, auth and cluster into HTTP handlers.
 type Server struct {
+	historyMu    sync.Mutex
 	Cfg          *config.Config
 	Store        Backend
 	Consensus    *consensus.Store
@@ -76,12 +77,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/stats", s.handleAPIStats)
 	mux.HandleFunc("/api/session", s.handleSession)
 	mux.HandleFunc("/api/object/", s.handleAPIObject)
+	mux.HandleFunc("/api/versions/", s.handleAPIVersions)
 	mux.Handle("/ui/", webui.Handler())
 	mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/", http.StatusFound)
 	})
 	mux.HandleFunc("/", s.handleS3)
-	return metrics.Middleware(s.auditRequests(s.protect(s.consensusRouting(s.limitUploads(mux)))))
+	return metrics.Middleware(s.auditRequests(s.protect(s.consensusRouting(s.limitUploads(s.serializeHistory(mux))))))
 }
 
 func (s *Server) refreshMetrics() {
@@ -252,19 +254,21 @@ func (s *Server) handleAPIStats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"quota":              map[string]int64{"used_bytes": quotaUsed, "total_bytes": quotaTotal},
-		"consensus":          s.consensusStatus(),
-		"limits":             map[string]int64{"max_object_size": s.Cfg.MaxObjectSize, "max_temp_bytes": s.Cfg.MaxTempBytes},
-		"node_id":            s.Cfg.NodeID,
-		"replication_factor": s.replicationFactor(),
-		"nodes_total":        len(nodes),
-		"nodes_healthy":      healthy,
-		"nodes":              nodes,
-		"polki_count":        len(polki),
-		"objects_count":      objects,
-		"objects_bytes":      objectBytes,
-		"polki":              polki,
-		"metrics":            snap,
+		"quota":               map[string]int64{"used_bytes": quotaUsed, "total_bytes": quotaTotal},
+		"versioning_enabled":  s.Cfg.VersioningEnabled,
+		"trash_retention_sec": int64(s.Cfg.TrashRetention.Seconds()),
+		"consensus":           s.consensusStatus(),
+		"limits":              map[string]int64{"max_object_size": s.Cfg.MaxObjectSize, "max_temp_bytes": s.Cfg.MaxTempBytes},
+		"node_id":             s.Cfg.NodeID,
+		"replication_factor":  s.replicationFactor(),
+		"nodes_total":         len(nodes),
+		"nodes_healthy":       healthy,
+		"nodes":               nodes,
+		"polki_count":         len(polki),
+		"objects_count":       objects,
+		"objects_bytes":       objectBytes,
+		"polki":               polki,
+		"metrics":             snap,
 		"terminology": map[string]string{
 			"bucket": "полка",
 			"store":  "кладовка",
@@ -300,11 +304,13 @@ func (s *Server) handleCluster(w http.ResponseWriter, r *http.Request) {
 	s.Reg.SetSelfUsed(used)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"nodes":              s.Reg.Snapshot(),
-		"consensus":          s.consensusStatus(),
-		"this_node":          s.Cfg.NodeID,
-		"replication_factor": s.replicationFactor(),
-		"used_bytes":         used,
+		"nodes":               s.Reg.Snapshot(),
+		"versioning_enabled":  s.Cfg.VersioningEnabled,
+		"trash_retention_sec": int64(s.Cfg.TrashRetention.Seconds()),
+		"consensus":           s.consensusStatus(),
+		"this_node":           s.Cfg.NodeID,
+		"replication_factor":  s.replicationFactor(),
+		"used_bytes":          used,
 		"terminology": map[string]string{
 			"bucket": "полка",
 			"store":  "кладовка",
@@ -337,16 +343,24 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 		if !exists {
 			_ = s.Store.CreatePolka(polka)
 		}
-		meta, err := s.Store.PutObjectWithETag(polka, key, body, ct, r.Header.Get("X-Kladovka-ETag"))
+		meta, err := s.putInternalVersion(r, polka, key, body, ct)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		setVersionHeaders(w, meta)
 		w.Header().Set("ETag", meta.ETag)
 		w.WriteHeader(http.StatusOK)
 	case http.MethodGet, http.MethodHead:
-		rc, meta, err := s.Store.GetObject(polka, key)
+		var rc io.ReadCloser
+		var meta *storage.ObjectMeta
+		var err error
+		if id := r.URL.Query().Get("versionId"); id != "" && s.Cfg.VersioningEnabled {
+			rc, meta, err = s.versions().GetVersion(polka, key, id)
+		} else {
+			rc, meta, err = s.Store.GetObject(polka, key)
+		}
 		if err != nil {
 			if errors.Is(err, storage.ErrObjectNotFound) {
 				http.NotFound(w, r)
@@ -356,6 +370,7 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer rc.Close()
+		setVersionHeaders(w, meta)
 		w.Header().Set("ETag", meta.ETag)
 		w.Header().Set("Content-Type", meta.ContentType)
 		w.Header().Set("X-Kladovka-Sha256", meta.SHA256)
@@ -367,7 +382,7 @@ func (s *Server) handleInternalObject(w http.ResponseWriter, r *http.Request) {
 		}
 		http.ServeContent(w, r, key, meta.LastModified, rc.(io.ReadSeeker))
 	case http.MethodDelete:
-		if err := s.Store.DeleteObject(polka, key); err != nil && !errors.Is(err, storage.ErrObjectNotFound) {
+		if err := s.deleteInternalVersion(r, polka, key); err != nil && !errors.Is(err, storage.ErrObjectNotFound) {
 			status, _, _ := mapStorageErr(err)
 			http.Error(w, err.Error(), status)
 			return
@@ -424,13 +439,16 @@ func (s *Server) handleS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, q := range []string{"acl", "versioning", "versionId", "versions", "lifecycle", "policy", "cors", "tagging", "location", "notification", "restore"} {
+	for _, q := range []string{"acl", "lifecycle", "policy", "cors", "tagging", "location", "notification", "restore"} {
 		if r.URL.Query().Has(q) {
 			writeS3Error(w, http.StatusNotImplemented, "NotImplemented", "unsupported S3 feature: "+q, r.URL.Path)
 			return
 		}
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/")
+	if s.handleVersionRequest(w, r, path) {
+		return
+	}
 	if r.URL.Query().Has("delete") {
 		bucket, _, object := splitPolkaKey(path)
 		if bucket == "" || object {
@@ -563,7 +581,7 @@ func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key st
 		return
 	}
 	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
-		if err := s.Rep.ReplicatePut(r.Context(), polka, key, body, ct, meta.ETag); err != nil {
+		if err := s.Rep.ReplicatePut(r.Context(), polka, key, body, ct, meta.ETag, meta); err != nil {
 			metrics.RecordReplicationFailed()
 			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "object stored locally but replication incomplete; retry the same PUT", r.URL.Path)
 			return
@@ -574,14 +592,20 @@ func (s *Server) putObject(w http.ResponseWriter, r *http.Request, polka, key st
 	}
 	metrics.RecordS3Operation("PutObject", polka)
 	metrics.RecordBytesUploaded(polka, size)
+	setVersionHeaders(w, meta)
 	w.Header().Set("ETag", meta.ETag)
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key string) {
+	if s.Cfg.VersioningEnabled && s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
+		s.forwardToPrimary(w, r, polka, key)
+		return
+	}
 	rc, meta, err := s.Store.GetObject(polka, key)
 	if err == nil {
 		defer rc.Close()
+		setVersionHeaders(w, meta)
 		w.Header().Set("ETag", meta.ETag)
 		w.Header().Set("Content-Type", meta.ContentType)
 		w.Header().Set("x-amz-kladovka-polka", polka)
@@ -599,7 +623,7 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 		return
 	}
 	// Try peers if not found locally.
-	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
+	if !s.Cfg.VersioningEnabled && s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 		if s.tryFetchFromPeers(w, r, polka, key) {
 			return
 		}
@@ -608,15 +632,20 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request, polka, key st
 }
 
 func (s *Server) headObject(w http.ResponseWriter, r *http.Request, polka, key string) {
+	if s.Cfg.VersioningEnabled && s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && !s.Rep.IsPrimary(polka, key) {
+		s.forwardToPrimary(w, r, polka, key)
+		return
+	}
 	meta, err := s.Store.HeadObject(polka, key)
 	if err != nil {
-		if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && s.tryFetchFromPeers(w, r, polka, key) {
+		if !s.Cfg.VersioningEnabled && s.Consensus == nil && s.Cfg.ReplicationFactor > 1 && s.tryFetchFromPeers(w, r, polka, key) {
 			return
 		}
 		st, code, msg := mapStorageErr(err)
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
 	}
+	setVersionHeaders(w, meta)
 	w.Header().Set("ETag", meta.ETag)
 	w.Header().Set("Content-Type", meta.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(meta.Size, 10))
@@ -630,19 +659,20 @@ func (s *Server) deleteObject(w http.ResponseWriter, r *http.Request, polka, key
 		s.forwardToPrimary(w, r, polka, key)
 		return
 	}
-	err := s.Store.DeleteObject(polka, key)
+	deleted, err := s.trash(polka, key)
 	if err != nil && !errors.Is(err, storage.ErrObjectNotFound) {
 		st, code, msg := mapStorageErr(err)
 		writeS3Error(w, st, code, msg, r.URL.Path)
 		return
 	}
 	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
-		if err := s.Rep.ReplicateDelete(r.Context(), polka, key); err != nil {
+		if err := s.Rep.ReplicateDelete(r.Context(), polka, key, deleted); err != nil {
 			metrics.RecordReplicationFailed()
 			writeS3Error(w, http.StatusServiceUnavailable, "ServiceUnavailable", "local delete completed; replica delete incomplete, retry DELETE", r.URL.Path)
 			return
 		}
 	}
+	setVersionHeaders(w, deleted)
 	metrics.RecordS3Operation("DeleteObject", polka)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -654,7 +684,7 @@ func (s *Server) forwardToPrimary(w http.ResponseWriter, r *http.Request, polka,
 		return
 	}
 	u := strings.TrimRight(base, "/") + "/" + url.PathEscape(polka) + "/" + escapeKeyPath(key)
-	if strings.HasPrefix(r.URL.Path, "/api/object/") {
+	if strings.HasPrefix(r.URL.Path, "/api/object/") || strings.HasPrefix(r.URL.Path, "/api/versions/") {
 		u = strings.TrimRight(base, "/") + r.URL.EscapedPath()
 	}
 	if r.URL.RawQuery != "" {
@@ -768,6 +798,9 @@ func escapeKeyPath(key string) string {
 }
 
 func (s *Server) handleAPIObject(w http.ResponseWriter, r *http.Request) {
+	if s.handleVersionRequest(w, r, strings.TrimPrefix(r.URL.Path, "/api/object/")) {
+		return
+	}
 	polka, key, ok := splitPolkaKey(strings.TrimPrefix(r.URL.Path, "/api/object/"))
 	if !ok {
 		http.Error(w, "missing object key", http.StatusBadRequest)

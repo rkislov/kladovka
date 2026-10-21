@@ -129,7 +129,7 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 			if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
 				rc, _, e := s.Store.GetObject(polka, key)
 				if e == nil {
-					e = s.Rep.ReplicatePut(r.Context(), polka, key, rc.(io.ReadSeeker), meta.ContentType, meta.ETag)
+					e = s.Rep.ReplicatePut(r.Context(), polka, key, rc.(io.ReadSeeker), meta.ContentType, meta.ETag, meta)
 					rc.Close()
 				}
 				if e != nil {
@@ -144,6 +144,7 @@ func (s *Server) handleObjectMultipart(w http.ResponseWriter, r *http.Request, p
 				writeS3Error(w, http.StatusInternalServerError, "InternalError", err.Error(), r.URL.Path)
 				return true
 			}
+			setVersionHeaders(w, meta)
 			metrics.RecordS3Operation("CompleteMultipartUpload", polka)
 			metrics.RecordBytesUploaded(polka, meta.Size)
 			writeXML(w, http.StatusOK, completeMultipartUploadResult{

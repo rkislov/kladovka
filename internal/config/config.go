@@ -21,6 +21,8 @@ import (
 
 // Config holds runtime settings for the Кладовка server.
 type Config struct {
+	VersioningEnabled   bool
+	TrashRetention      time.Duration
 	ClusterMode         string
 	RaftClusterID       string
 	RaftBootstrap       bool
@@ -71,7 +73,7 @@ type Config struct {
 
 // Load reads configuration from environment variables.
 func Load() (*Config, error) {
-	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_OBJECT_SIZE", "MAX_TEMP_BYTES", "STORAGE_QUOTA_BYTES", "MIN_FREE_DISK_BYTES", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC", "SESSION_TTL_SEC"} {
+	for _, key := range []string{"REPLICATION_FACTOR", "HEALTH_INTERVAL_SEC", "MAX_OBJECT_SIZE", "MAX_TEMP_BYTES", "STORAGE_QUOTA_BYTES", "MIN_FREE_DISK_BYTES", "MAX_CONCURRENT_UPLOADS", "MULTIPART_TTL_SEC", "CLEANUP_INTERVAL_SEC", "SESSION_TTL_SEC", "TRASH_RETENTION_SEC"} {
 		if v := os.Getenv(key); v != "" {
 			if _, err := strconv.ParseInt(v, 10, 64); err != nil {
 				return nil, fmt.Errorf("%s must be an integer", key)
@@ -89,7 +91,7 @@ func Load() (*Config, error) {
 			}
 		}
 	}
-	for _, key := range []string{"CLUSTER_VERIFY_TLS", "VERIFY_OBJECT_CHECKSUM", "RAFT_BOOTSTRAP", "RAFT_JOIN"} {
+	for _, key := range []string{"VERSIONING_ENABLED", "CLUSTER_VERIFY_TLS", "VERIFY_OBJECT_CHECKSUM", "RAFT_BOOTSTRAP", "RAFT_JOIN"} {
 		if v := strings.ToLower(os.Getenv(key)); v != "" {
 			switch v {
 			case "1", "true", "yes", "on", "0", "false", "no", "off":
@@ -99,7 +101,13 @@ func Load() (*Config, error) {
 		}
 	}
 
+	retention := getenvInt64("TRASH_RETENTION_SEC", 30*86400)
+	if retention < 0 || retention > int64((1<<63-1)/int64(time.Second)) {
+		return nil, fmt.Errorf("TRASH_RETENTION_SEC is out of range")
+	}
 	cfg := &Config{
+		VersioningEnabled:    getenvBool("VERSIONING_ENABLED", true),
+		TrashRetention:       time.Duration(retention) * time.Second,
 		ClusterMode:          getenv("CLUSTER_MODE", "legacy"),
 		RaftBootstrap:        getenvBool("RAFT_BOOTSTRAP", false),
 		RaftJoin:             getenvBool("RAFT_JOIN", false),

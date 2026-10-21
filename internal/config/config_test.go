@@ -125,3 +125,14 @@ func TestConsensusConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestTrashRetentionValidation(t *testing.T) {
+	for _, raw := range []string{"-1", "9223372036854775807", "nonsense"} {
+		t.Run(raw, func(t *testing.T) {
+			t.Setenv("TRASH_RETENTION_SEC", raw)
+			if _, err := Load(); err == nil {
+				t.Fatal("invalid retention accepted")
+			}
+		})
+	}
+}

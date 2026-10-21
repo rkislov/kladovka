@@ -24,6 +24,8 @@ jobs:
           python3 scripts/smoke.py --binary ./bin/kladovka --sdk-clients
           python3 scripts/smoke.py --binary ./bin/kladovka --access-policy --sdk-clients
           python3 scripts/consensus_smoke.py --binary ./bin/kladovka --sdk-clients
+      - name: Version history and trash SDK contract
+        run: python3 scripts/versioning_smoke.py --binary ./bin/kladovka
       - name: Load pilot harness contract (small fixture, no performance gate)
         run: |
           python3 -m unittest discover -s scripts -p test_load_pilot.py

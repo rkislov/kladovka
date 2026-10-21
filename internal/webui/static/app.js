@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const folderIcon = '<svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9H3z"/></svg>';
-let timer, openPolka = null, busy = false, refreshing = false, polki = [], signature = '', limits = {}, csrfToken = '';
+let timer, openPolka = null, busy = false, refreshing = false, polki = [], signature = '', limits = {}, csrfToken = '', versioningEnabled = false;
 
 function objectCount(n) {
   const mod = n % 100;
@@ -44,7 +44,7 @@ function renderStats(j) {
   const consensus = j.consensus || {}, sharedCatalog = consensus.mode === 'consensus';
   $('catalog-scope').textContent = sharedCatalog ? 'Каталог кластера' : 'На этом узле';
   $('storage-scope').textContent = sharedCatalog ? 'Каталог — весь кластер; диск и счётчики — обслуживший запрос узел.' : 'Статистика и списки относятся к текущему узлу.';
-  limits = j.limits || {};
+  limits = j.limits || {}; versioningEnabled = !!j.versioning_enabled;
   const quota = j.quota || {};
   $('quota-status').hidden = !quota.total_bytes;
   $('quota-status').textContent = `Квота данных: ${bytes(quota.used_bytes)} из ${bytes(quota.total_bytes)}`;
@@ -99,7 +99,8 @@ function renderPolki(force = false) {
   if (button) openDetail(button.parentElement.querySelector('.detail'), openPolka);
 }
 async function openDetail(detail, name) {
-  detail.innerHTML = `<div class="space-y-4 p-5"><div class="flex flex-wrap items-center justify-between gap-3"><label class="flex min-w-0 flex-1 items-center gap-2 text-xs text-slate-500">Папка<input class="input prefix min-w-0 flex-1" placeholder="Например, photos/" aria-label="Папка для загрузки" /></label><button class="danger delete-polka" data-mutation>Удалить полку</button></div><label class="dropzone"><svg class="size-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg><span><span class="font-medium text-blue-600">Выберите файлы</span> или перетащите сюда</span><span class="text-xs text-slate-500">Файл с таким же именем будет заменён</span><input type="file" multiple class="upload sr-only" aria-label="Загрузить файлы" data-mutation /></label><p class="upload-state meta" role="status" hidden></p></div><ul class="objs divide-y divide-slate-100 border-t border-slate-100"></ul><div class="flex items-center justify-between gap-3 px-5 py-3"><p class="meta list-state">Получаем список файлов…</p><button class="ghost more" hidden>Показать ещё</button></div>`;
+  detail.innerHTML = `<div class="space-y-4 p-5"><div class="flex flex-wrap items-center justify-between gap-3"><label class="flex min-w-0 flex-1 items-center gap-2 text-xs text-slate-500">Папка<input class="input prefix min-w-0 flex-1" placeholder="Например, photos/" aria-label="Папка для загрузки" /></label>${versioningEnabled ? '<button class="ghost history-open">Версии и корзина</button>' : ""}<button class="danger delete-polka" data-mutation>Удалить полку</button></div><label class="dropzone"><svg class="size-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg><span><span class="font-medium text-blue-600">Выберите файлы</span> или перетащите сюда</span><span class="text-xs text-slate-500">${versioningEnabled ? "Предыдущая версия файла сохранится" : "Файл с таким же именем будет заменён"}</span><input type="file" multiple class="upload sr-only" aria-label="Загрузить файлы" data-mutation /></label><p class="upload-state meta" role="status" hidden></p></div><ul class="objs divide-y divide-slate-100 border-t border-slate-100"></ul><div class="flex items-center justify-between gap-3 px-5 py-3"><p class="meta list-state">Получаем список файлов…</p><button class="ghost more" hidden>Показать ещё</button></div>`;
+  if (versioningEnabled) detail.querySelector('.history-open').onclick = () => showHistory(name);
   detail.querySelector('.delete-polka').onclick = async () => {
     if (!confirm('Удалить пустую полку «' + name + '»?')) return;
     await action(async () => { await api('/api/polki/' + encodeURIComponent(name), { method: 'DELETE' }); openPolka = null; signature = ''; await refresh(); toast('Полка удалена'); });
@@ -138,7 +139,7 @@ async function openDetail(detail, name) {
         li.className = 'flex flex-wrap items-center gap-3 px-5 py-3.5';
         li.innerHTML = `<svg class="size-5 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M5 3h9l5 5v13H5zM14 3v6h5"/></svg><div class="min-w-0 flex-1"><span class="block break-all text-sm font-medium text-slate-700">${esc(object.key.split('/').pop())}</span><span class="mt-0.5 block break-all text-xs text-slate-500">${object.key.includes('/') ? esc(object.key.slice(0, object.key.lastIndexOf('/') + 1)) + ' · ' : ''}${bytes(object.size)}${object.last_modified ? ' · ' + esc(new Date(object.last_modified).toLocaleDateString()) : ''}</span></div><a class="rounded-md px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50" href="${esc(objectURL(name, object.key))}" download aria-label="Скачать ${esc(object.key)}">Скачать</a><button class="danger" data-mutation aria-label="Удалить ${esc(object.key)}">Удалить</button>`;
         li.querySelector('button').onclick = async () => {
-          if (!confirm('Безвозвратно удалить «' + object.key + '»?')) return;
+          if (!confirm((versioningEnabled ? 'Переместить в корзину «' : 'Безвозвратно удалить «') + object.key + '»?')) return;
           await action(async () => { await api(objectURL(name, object.key), { method: 'DELETE' }); signature = ''; await refresh(); toast('Файл удалён'); });
         };
         list.appendChild(li);
@@ -200,7 +201,7 @@ $('new-polka').onclick = () => { $('sec-polki').scrollIntoView({ behavior: 'smoo
 $('filter').oninput = () => renderPolki();
 function schedule() {
   clearInterval(timer);
-  if ($('autorefresh').checked) timer = setInterval(() => { if (!busy && !document.hidden && document.activeElement.tagName !== 'INPUT') refresh(); }, 5000);
+  if ($('autorefresh').checked) timer = setInterval(() => { if (!busy && !document.hidden && document.activeElement.tagName !== 'INPUT' && !document.querySelector('dialog[open]')) refresh(); }, 5000);
 }
 $('autorefresh').onchange = schedule;
 async function startSession() {
@@ -226,3 +227,46 @@ document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('cl
     if (item === link) item.setAttribute('aria-current', 'location'); else item.removeAttribute('aria-current');
   });
 }));
+
+async function showHistory(name) {
+ const dialog = document.createElement('dialog');
+ dialog.className = 'rounded-xl border border-slate-200 bg-white p-6 text-slate-800 shadow-xl';
+ dialog.style.cssText = 'width:min(1000px,94vw);max-height:85vh;margin:auto';
+ dialog.innerHTML = '<div class="flex items-center justify-between gap-3"><h2 class="text-lg font-semibold">Версии и корзина</h2><button class="ghost close">Закрыть</button></div><p class="meta retention"></p><label class="my-4 flex gap-2"><input type="checkbox" class="trash-only">Только объекты в корзине</label><div class="history-list space-y-3"></div>';
+ document.body.appendChild(dialog);dialog.showModal();dialog.querySelector('.close').onclick=()=>dialog.close();dialog.onclose=()=>dialog.remove();
+ let versions=[];
+ function render() {
+  const trashed=new Set(versions.filter(v=>v.is_latest&&v.delete_marker).map(v=>v.key));
+  const container=dialog.querySelector('.history-list');container.replaceChildren();
+  for(const v of versions.filter(v=>!dialog.querySelector('.trash-only').checked||trashed.has(v.key))) {
+   const row=document.createElement('div');row.className='rounded-lg border border-slate-200 p-3';
+   row.innerHTML=`<p class="break-all font-medium">${esc(v.key)}</p><p class="meta break-all">${v.delete_marker?'Маркер удаления':bytes(v.size)} · ${esc(new Date(v.last_modified).toLocaleString())} · ${v.is_latest?'текущая':'предыдущая'} · ${esc(v.version_id)}</p><div class="mt-2 flex flex-wrap gap-2"></div>`;
+   const actions=row.lastElementChild;
+   if(!v.delete_marker) {
+    const a=document.createElement('a');a.className='ghost';a.textContent='Скачать версию';a.href=objectURL(name,v.key)+'?versionId='+encodeURIComponent(v.version_id);a.download='';actions.append(a);
+    const restore=document.createElement('button');restore.className='ghost';restore.textContent='Восстановить';restore.onclick=()=>mutate(v,'restore');actions.append(restore);
+   }
+   if(v.is_latest&&v.delete_marker) {const purge=document.createElement('button');purge.className='danger';purge.textContent='Очистить историю объекта';purge.onclick=()=>mutate(v,'purge');actions.append(purge);}
+   const remove=document.createElement('button');remove.className='danger';remove.textContent='Удалить эту версию навсегда';remove.onclick=()=>mutate(v,'delete-version');actions.append(remove);
+   container.append(row);
+  }
+  if(!container.children.length)container.textContent='Нет сохранённых версий';
+ }
+ async function load() {
+  const data=await (await api('/api/versions/'+encodeURIComponent(name))).json();versions=data.versions||[];
+  dialog.querySelector('.retention').textContent=data.trash_retention_sec===0?'Автоматическая очистка корзины отключена.':`Корзина хранится ${data.trash_retention_sec} с после последнего удаления. Очистка удаляет всю историю объекта. Политику задаёт администратор сервера.`;
+  render();
+ }
+ async function mutate(v,actionName) {
+  const warning=actionName==='restore'?'Создать новую текущую версию из выбранной?':actionName==='purge'?'Навсегда удалить всю историю этого объекта из корзины?':'Навсегда удалить эту версию? Если она текущая, предыдущая станет текущей.';
+  if(!confirm(warning))return;
+  dialog.querySelectorAll('button').forEach(b=>b.disabled=true);
+  try {
+   if(actionName==='delete-version')await api(objectURL(name,v.key)+'?versionId='+encodeURIComponent(v.version_id),{method:'DELETE'});
+   else await api('/api/versions/'+encodeURIComponent(name)+'/'+v.key.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:actionName,version_id:v.version_id})});
+   await load();signature='';await refresh();toast('Готово');
+  }catch(e){toast(e.message,true)}finally{dialog.querySelectorAll('button').forEach(b=>b.disabled=false)}
+ }
+ dialog.querySelector('.trash-only').onchange=render;
+ try{await load()}catch(e){dialog.querySelector('.history-list').textContent=e.message}
+}
