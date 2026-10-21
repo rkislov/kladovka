@@ -12,7 +12,7 @@ import (
 	"github.com/rkislov/kladovka/internal/testprofile"
 )
 
-// One iteration is four concurrent unique 8MiB PUTs through the Go backend.
+// One iteration is three rounds of four concurrent unique 8MiB PUTs through the Go backend.
 // HTTP, SDK and signing are covered separately by workload_pilot.py.
 func BenchmarkProfileConcurrentPUT(b *testing.B) {
 	f := newFixture(b)
@@ -28,9 +28,9 @@ func BenchmarkProfileConcurrentPUT(b *testing.B) {
 	stop := testprofile.Start(b, "consensus")
 	defer stop()
 	b.ResetTimer()
-	b.SetBytes(4 * 8 << 20)
+	b.SetBytes(3 * 4 * 8 << 20)
 	b.ReportAllocs()
-	for round := 0; round < b.N; round++ {
+	for round := 0; round < 3*b.N; round++ {
 		var wg sync.WaitGroup
 		errors := make(chan error, 4)
 		for worker := 0; worker < 4; worker++ {
