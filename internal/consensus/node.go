@@ -266,7 +266,16 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 			return fail(e)
 		}
 	}
-	r, e := raft.NewRaft(rc, m, logs, logs, snapshots, transport)
+	// Keep only one AppendEntries batch of recent, durably stored commands.
+	// Raft otherwise decodes the same Bolt values for each follower and previous-log
+	// lookup. This is write-through: StoreLogs succeeds on disk before cache insertion;
+	// misses and restarts read Bolt, and compaction invalidates the cache.
+	recentLogs, e := raft.NewLogCache(rc.MaxAppendEntries, logs)
+	if e != nil {
+		transport.Close()
+		return fail(e)
+	}
+	r, e := raft.NewRaft(rc, m, recentLogs, logs, snapshots, transport)
 	if e != nil {
 		transport.Close()
 		return fail(e)
