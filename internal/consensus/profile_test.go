@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/rkislov/kladovka/internal/testprofile"
 )
@@ -106,5 +109,76 @@ func BenchmarkProfileSustainedPUT(b *testing.B) {
 	b.Logf("heap_alloc=%d heap_inuse=%d heap_sys=%d total_alloc_delta=%d gc_delta=%d pause_ns_delta=%d", after.HeapAlloc, after.HeapInuse, after.HeapSys, after.TotalAlloc-before.TotalAlloc, after.NumGC-before.NumGC, after.PauseTotalNs-before.PauseTotalNs)
 	for i, node := range f.nodes {
 		b.Logf("node %d bolt stats: %+v", i, node.logs.Stats())
+	}
+}
+
+// Eight quiescent checkpoints isolate retained Go heap from Bolt mmap RSS.
+// Explicit pruning and GC are diagnostic only, not production load behavior.
+func BenchmarkProfileOverwriteHeap(b *testing.B) {
+	epochs := 8
+	if value := os.Getenv("KLADOVKA_OVERWRITE_EPOCHS"); value != "" {
+		var err error
+		epochs, err = strconv.Atoi(value)
+		if err != nil || epochs < 8 || epochs > 128 {
+			b.Fatal("KLADOVKA_OVERWRITE_EPOCHS must be 8..128")
+		}
+	}
+	stop := testprofile.Start(b, "overwrite")
+	defer stop()
+	f := newFixture(b)
+	s := f.nodes[f.leader(b)]
+	if err := s.CreatePolka("plateau"); err != nil {
+		b.Fatal(err)
+	}
+	bodies := make([][]byte, 4)
+	for w := range bodies {
+		bodies[w] = make([]byte, 1<<20)
+		rand.New(rand.NewSource(int64(w + 1))).Read(bodies[w])
+	}
+	for epoch := 0; epoch < epochs*b.N; epoch++ {
+		for round := 0; round < 8; round++ {
+			var wg sync.WaitGroup
+			errs := make(chan error, 4)
+			for w := 0; w < 4; w++ {
+				wg.Add(1)
+				go func(w int) {
+					defer wg.Done()
+					for offset := 0; offset < len(bodies[w]); offset += ChunkSize {
+						bodies[w][offset] = byte(epoch)
+						bodies[w][offset+1] = byte(round)
+					}
+					_, err := s.PutObject("plateau", fmt.Sprintf("key-%d", (round%4)*4+w), bytes.NewReader(bodies[w]), "application/octet-stream")
+					errs <- err
+				}(w)
+			}
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+		s.writeMu.Lock()
+		err := s.apply(command{Kind: "prune"})
+		s.writeMu.Unlock()
+		if err != nil {
+			b.Fatal(err)
+		}
+		eventually(b, 10*time.Second, func() bool {
+			for _, node := range f.nodes {
+				node.fsm.mu.RLock()
+				ok := len(node.fsm.state.Chunks) == 64 && len(node.fsm.state.Records) == 16
+				node.fsm.mu.RUnlock()
+				if !ok {
+					return false
+				}
+			}
+			return true
+		})
+		runtime.GC()
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+		b.Logf("epoch=%d heap_alloc=%d heap_objects=%d goroutines=%d", epoch, mem.HeapAlloc, mem.HeapObjects, runtime.NumGoroutine())
 	}
 }
