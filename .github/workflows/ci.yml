@@ -34,6 +34,8 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p test_workload_pilot.py
           python3 scripts/workload_pilot.py --binary ./bin/kladovka --catalog-objects 25 --cold-samples 1 --samples 3 --mixed-cycles 8 --large-bytes 1048576 --large-count 2 --output workload-ci.json
+      - name: Sustained-write harness contract (tiny fixture, no performance gate)
+        run: python3 scripts/write_pilot.py --binary ./bin/kladovka --runs 1 --objects 4 --warmup 1 --idle-seconds 1 --output write-pilot-ci.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -42,6 +44,7 @@ jobs:
             load-pilot-ci.json
             materialization-ci.json
             workload-ci.json
+            write-pilot-ci.json
           if-no-files-found: ignore
   ui:
     runs-on: ubuntu-latest
