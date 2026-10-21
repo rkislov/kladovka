@@ -32,10 +32,17 @@ func (s *Server) copyObject(w http.ResponseWriter, r *http.Request, bucket, key 
 		fail(400, "InvalidArgument", "one copy source required")
 		return
 	}
-	if strings.Contains(raw, "?") {
-		fail(501, "NotImplemented", "versioned copy sources are not supported")
-		return
+	versionID := ""
+	if path, query, ok := strings.Cut(raw, "?"); ok {
+		values, e := url.ParseQuery(query)
+		if e != nil || len(values) != 1 || values.Get("versionId") == "" || !s.Cfg.VersioningEnabled {
+			fail(501, "NotImplemented", "unsupported copy source query")
+			return
+		}
+		raw = path
+		versionID = values.Get("versionId")
 	}
+
 	source, err := url.PathUnescape(strings.TrimPrefix(raw, "/"))
 	srcBucket, srcKey, ok := strings.Cut(source, "/")
 	if err != nil || !ok || srcBucket == "" || srcKey == "" || strings.ContainsAny(srcBucket, `\:`) || strings.Contains(srcBucket, "..") || strings.HasPrefix(srcBucket, ".") {
@@ -102,7 +109,7 @@ func (s *Server) copyObject(w http.ResponseWriter, r *http.Request, bucket, key 
 			}
 		}
 	}
-	if srcBucket == bucket && srcKey == key && directive == "COPY" {
+	if srcBucket == bucket && srcKey == key && directive == "COPY" && versionID == "" {
 		fail(400, "InvalidRequest", "self copy requires REPLACE")
 		return
 	}
@@ -125,7 +132,7 @@ func (s *Server) copyObject(w http.ResponseWriter, r *http.Request, bucket, key 
 		fail(404, "NoSuchBucket", "destination bucket does not exist")
 		return
 	}
-	reader, meta, err := s.copySource(r, srcBucket, srcKey)
+	reader, meta, err := s.copySourceVersion(r, srcBucket, srcKey, versionID)
 	if err != nil {
 		st, c, m := mapStorageErr(err)
 		fail(st, c, m)
@@ -186,7 +193,7 @@ func (s *Server) copyObject(w http.ResponseWriter, r *http.Request, bucket, key 
 		return
 	}
 	if s.Consensus == nil && s.Cfg.ReplicationFactor > 1 {
-		if err = s.Rep.ReplicatePut(r.Context(), bucket, key, spool, ct, result.ETag); err != nil {
+		if err = s.Rep.ReplicatePut(r.Context(), bucket, key, spool, ct, result.ETag, result); err != nil {
 			metrics.RecordReplicationFailed()
 			fail(503, "ServiceUnavailable", "copy stored locally but replication incomplete; retry copy")
 			return
@@ -194,6 +201,7 @@ func (s *Server) copyObject(w http.ResponseWriter, r *http.Request, bucket, key 
 		metrics.RecordReplicationOK()
 		metrics.RecordReplicationPublished(s.Cfg.ReplicationFactor - 1)
 	}
+	setVersionHeaders(w, result)
 	metrics.RecordS3Operation("CopyObject", bucket)
 	writeXML(w, 200, struct {
 		XMLName      xml.Name `xml:"CopyObjectResult"`
@@ -234,7 +242,13 @@ func copyConditions(r *http.Request, meta *storage.ObjectMeta) int {
 }
 
 func (s *Server) copySource(r *http.Request, bucket, key string) (io.ReadCloser, *storage.ObjectMeta, error) {
+	return s.copySourceVersion(r, bucket, key, "")
+}
+func (s *Server) copySourceVersion(r *http.Request, bucket, key, id string) (io.ReadCloser, *storage.ObjectMeta, error) {
 	if s.Consensus != nil || s.Cfg.ReplicationFactor <= 1 || s.Rep.IsPrimary(bucket, key) {
+		if id != "" {
+			return s.versions().GetVersion(bucket, key, id)
+		}
 		return s.Store.GetObject(bucket, key)
 	}
 	// Source placement can differ from destination placement. Fetch only the
@@ -246,6 +260,9 @@ func (s *Server) copySource(r *http.Request, bucket, key string) (io.ReadCloser,
 	req, err := http.NewRequestWithContext(r.Context(), "GET", strings.TrimRight(base, "/")+"/internal/object/"+url.PathEscape(bucket)+"/"+escapeKeyPath(key), nil)
 	if err != nil {
 		return nil, nil, err
+	}
+	if id != "" {
+		req.URL.RawQuery = "versionId=" + url.QueryEscape(id)
 	}
 	req.Header.Set("Authorization", "Bearer "+s.Cfg.ClusterToken)
 	client := *s.Reg.Client()

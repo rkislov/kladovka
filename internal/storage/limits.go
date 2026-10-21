@@ -17,6 +17,7 @@ var ErrQuotaExceeded = errors.New("storage quota exceeded")
 var ErrInsufficientSpace = errors.New("disk free-space reserve reached")
 
 type Options struct {
+	Versioning   bool
 	QuotaBytes   int64
 	MinFreeBytes uint64
 	VerifyReads  bool
@@ -45,6 +46,9 @@ func NewWithOptions(root string, options Options) (*Store, error) {
 	if err = s.recoverTransactions(); err != nil {
 		return nil, err
 	}
+	if _, err = s.CleanupVersionFiles(); err != nil {
+		return nil, err
+	}
 	s.catalogueExactNames, err = s.exactCatalogueNames()
 	if err != nil {
 		return nil, err
@@ -71,6 +75,11 @@ func NewWithOptions(root string, options Options) (*Store, error) {
 	if err = syncDir(s.UploadDir()); err != nil {
 		return nil, err
 	}
+	if _, e := os.Stat(filepath.Join(root, ".kladovka-versioning")); e == nil || options.Versioning {
+		if err = writeAtomic(filepath.Join(root, formatName), []byte("{\"version\":3}\n")); err != nil {
+			return nil, err
+		}
+	}
 	return s, nil
 }
 
@@ -82,7 +91,7 @@ func (s *Store) logicalBytes() (int64, error) {
 			return err
 		}
 		if d.IsDir() {
-			if path == s.transactionRoot() || path == s.UploadDir() || path == filepath.Join(s.root, ".consensus") {
+			if path == filepath.Join(s.root, ".versions") || path == s.transactionRoot() || path == s.UploadDir() || path == filepath.Join(s.root, ".consensus") {
 				return filepath.SkipDir
 			}
 			return nil
@@ -100,6 +109,11 @@ func (s *Store) logicalBytes() (int64, error) {
 		used += info.Size()
 		return nil
 	})
+	if err == nil {
+		var history int64
+		history, err = s.historyBytes()
+		used += history
+	}
 	return used, err
 }
 

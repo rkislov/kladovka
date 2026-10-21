@@ -114,7 +114,7 @@ def measure(name, count, concurrency, operation, pids):
 
 
 @contextmanager
-def servers(binary, mode, root, object_bytes, controls=None):
+def servers(binary, mode, root, object_bytes, controls=None, versioning=False):
     count = 1 if mode == 'legacy' else 3
     sockets, processes, logs, environments = [], [], [], []
     access, secret = 'load-pilot', 'disposable-load-pilot-secret'
@@ -132,7 +132,7 @@ def servers(binary, mode, root, object_bytes, controls=None):
         for index in range(count):
             # Do not inherit production settings, credentials, proxies or audit paths.
             env = {k: os.environ[k] for k in ('PATH', 'LANG', 'LC_ALL') if k in os.environ}
-            env.update({'CLUSTER_MODE': mode, 'DATA_ROOT': str(root / f'data-{index}'),
+            env.update({'VERSIONING_ENABLED': str(versioning).lower(), 'TRASH_RETENTION_SEC': '0', 'CLUSTER_MODE': mode, 'DATA_ROOT': str(root / f'data-{index}'),
                         'LISTEN_ADDR': http[index], 'NODE_ID': http[index], 'NODE_URL': urls[index],
                         'ACCESS_KEY': access, 'SECRET_KEY': secret, 'REGION': 'us-east-1',
                         'PEER_NODES': ','.join(url for i, url in enumerate(urls) if i != index),
