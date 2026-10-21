@@ -1,0 +1,9 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/rkislov/kladovka/internal/storage
+cpu: Apple M4
+BenchmarkProfileOverwriteLIST-10    	       1	7490229750 ns/op	162867200 B/op	 1260940 allocs/op
+--- BENCH: BenchmarkProfileOverwriteLIST-10
+    profile_test.go:47: exact filename semantics: false
+PASS
+ok  	github.com/rkislov/kladovka/internal/storage	8.535s
