@@ -192,7 +192,7 @@ def servers(binary, mode, root, object_bytes, controls=None):
                 processes[index] = subprocess.Popen([str(binary)], cwd=root, env=env,
                                                     stdout=logs[index], stderr=logs[index])
 
-            controls.update(stop=stop, start=start, admin=admin)
+            controls.update(stop=stop, start=start, admin=admin, pids=lambda: [p.pid for p in processes])
         try:
             yield client, [p.pid for p in processes], {'nodes': count, 'replication_factor': count,
                   'route': 'follower to leader' if mode == 'consensus' else 'direct',
