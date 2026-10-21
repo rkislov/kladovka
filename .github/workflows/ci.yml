@@ -36,6 +36,8 @@ jobs:
           python3 scripts/workload_pilot.py --binary ./bin/kladovka --catalog-objects 25 --cold-samples 1 --samples 3 --mixed-cycles 8 --large-bytes 1048576 --large-count 2 --output workload-ci.json
       - name: Sustained-write harness contract (tiny fixture, no performance gate)
         run: python3 scripts/write_pilot.py --binary ./bin/kladovka --runs 1 --objects 4 --warmup 1 --idle-seconds 1 --output write-pilot-ci.json
+      - name: Fixed-key overwrite, offline catch-up and restart contract
+        run: python3 scripts/overwrite_pilot.py --binary ./bin/kladovka --keys 4 --size 4096 --seconds 1 --idle-seconds 1 --output overwrite-ci.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -45,6 +47,7 @@ jobs:
             materialization-ci.json
             workload-ci.json
             write-pilot-ci.json
+            overwrite-ci.json
           if-no-files-found: ignore
   ui:
     runs-on: ubuntu-latest
