@@ -124,10 +124,24 @@ func (m *machine) chunk(hash string) ([]byte, error) {
 		return nil, e
 	}
 	defer file.Close()
-	b, e := io.ReadAll(io.LimitReader(file, ChunkSize+1))
+	info, e := file.Stat()
 	if e != nil {
 		return nil, e
 	}
+	if !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > ChunkSize {
+		return nil, storage.ErrIntegrity
+	}
+	// Allocate once, with one sentinel byte to reject growth between stat/read.
+	// Truncation, growth and corrupt bytes are all rejected before returning data.
+	b := make([]byte, int(info.Size())+1)
+	n, e := io.ReadFull(file, b)
+	if e != nil && e != io.EOF && e != io.ErrUnexpectedEOF {
+		return nil, e
+	}
+	if n != int(info.Size()) {
+		return nil, storage.ErrIntegrity
+	}
+	b = b[:n]
 	sum := sha256.Sum256(b)
 	if len(b) > ChunkSize || hex.EncodeToString(sum[:]) != hash {
 		return nil, storage.ErrIntegrity
