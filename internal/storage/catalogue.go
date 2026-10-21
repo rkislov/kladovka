@@ -115,13 +115,46 @@ func (c *catalogue) remove(key string) {
 	delete(c.objects, key)
 }
 
-// Called with mu held after durable commit. A failed metadata refresh drops the
-// disposable index; the next LIST rebuilds it. It cannot undo an acknowledged write.
-func (s *Store) refreshCatalogue(polka, path string, meta *ObjectMeta) {
-	if !s.catalogueExactNames {
+// prepareCatalogueMutation retains only an index that already contains the
+// exact physical key spelling. Unknown keys may alias existing case/Unicode
+// names, so they still invalidate every index on folding filesystems. Other
+// bucket spellings can be aliases too: discard them even on the fast path.
+// Called under mu, before any durable mutation; failed commits discard the
+// retained index as well. No external DATA_ROOT edits are supported.
+func (s *Store) prepareCatalogueMutation(polka, key string) {
+	if s.catalogueExactNames {
+		return
+	}
+	pp, err := s.polkaPath(polka)
+	if err != nil {
 		clear(s.catalogues)
 		return
 	}
+	path, err := s.objectPath(polka, key)
+	if err != nil {
+		clear(s.catalogues)
+		return
+	}
+	rel, err := filepath.Rel(pp, path)
+	c := s.catalogues[pp]
+	if err != nil || c == nil {
+		clear(s.catalogues)
+		return
+	}
+	if _, known := c.objects[filepath.ToSlash(rel)]; !known {
+		clear(s.catalogues)
+		return
+	}
+	for other := range s.catalogues {
+		if other != pp {
+			delete(s.catalogues, other)
+		}
+	}
+}
+
+// Called with mu held after durable commit. A failed metadata refresh drops the
+// disposable index; the next LIST rebuilds it. It cannot undo an acknowledged write.
+func (s *Store) refreshCatalogue(polka, path string, meta *ObjectMeta) {
 	pp, err := s.polkaPath(polka)
 	if err != nil {
 		return
@@ -234,7 +267,8 @@ func (s *Store) ListObjectPage(polka, prefix, delimiter, after string, limit int
 }
 
 // Filesystems with case folding or Unicode normalization can alias different S3
-// names. Incremental lexical updates are unsafe there; invalidate on mutation.
+// names. Unknown lexical mutations are unsafe there; exact cached keys can
+// be refreshed after commit, with all other alias indexes invalidated.
 // Probe in the journal directory, where crash leftovers are cleaned at startup.
 func (s *Store) exactCatalogueNames() (bool, error) {
 	dir, err := os.MkdirTemp(s.transactionRoot(), "index-probe-")

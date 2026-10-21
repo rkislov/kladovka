@@ -305,3 +305,101 @@ func TestCatalogueFilesystemAliases(t *testing.T) {
 		t.Fatal(page, err)
 	}
 }
+
+// Exercise folding-FS invalidation even on Linux CI; native aliases are tested
+// separately on APFS. Only a proven existing spelling may retain its index.
+func TestCatalogueExactOverwriteOnFoldingFilesystem(t *testing.T) {
+	s, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.catalogueExactNames = false
+	for _, bucket := range []string{"demo", "other"} {
+		if err = s.CreatePolka(bucket); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = s.PutObject(bucket, "Dir/key", strings.NewReader("old"), ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, bucket := range []string{"demo", "other"} {
+		if _, err = s.ListObjectPage(bucket, "", "", "", 100); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pp, _ := s.polkaPath("demo")
+	op, _ := s.polkaPath("other")
+	index := s.catalogues[pp]
+	meta, err := s.PutObject("demo", "Dir/key", strings.NewReader("new body"), "text/plain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.catalogues[pp] != index || s.catalogues[op] != nil {
+		t.Fatal("exact cache not retained or aliases not invalidated")
+	}
+	page, err := s.ListObjectPage("demo", "", "", "", 100)
+	if err != nil || len(page.Objects) != 1 || page.Objects[0].ETag != meta.ETag || page.Objects[0].Size != 8 {
+		t.Fatal(page, err)
+	}
+	if err = s.SetETag("demo", "Dir/key", "multipart-etag"); err != nil {
+		t.Fatal(err)
+	}
+	if s.catalogues[pp] != index || index.objects["Dir/key"].ETag != "multipart-etag" {
+		t.Fatal("ETag refresh lost")
+	}
+	if err = s.DeleteObject("demo", "Dir/key"); err != nil {
+		t.Fatal(err)
+	}
+	if s.catalogues[pp] != index || len(index.objects) != 0 {
+		t.Fatal("exact delete not reflected")
+	}
+	if _, err = s.PutObject("demo", "Dir/new", strings.NewReader("new"), ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.catalogues) != 0 {
+		t.Fatal("unproven spelling retained an index")
+	}
+}
+
+func TestCatalogueWarmBucketAndDirectoryAliases(t *testing.T) {
+	s, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.catalogueExactNames {
+		t.Skip("requires native filesystem aliases")
+	}
+	if err = s.CreatePolka("demo"); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"Folder/Aa-é", "Folder/second"} {
+		if _, err = s.PutObject("demo", key, strings.NewReader("old"), ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, key := range []string{"Folder/Aa-é", "folder/AA-e\u0301", "FOLDER/second"} {
+		// Two independently warmed spellings of the very same directory.
+		for _, bucket := range []string{"demo", "DEMO"} {
+			if _, err = s.ListObjectPage(bucket, "", "", "", 100); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err = s.PutObject("demo", key, strings.NewReader(key), "text/plain"); err != nil {
+			t.Fatal(err)
+		}
+		restored, err := New(s.root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, bucket := range []string{"demo", "DEMO"} {
+			got, e := s.ListObjectPage(bucket, "", "", "", 100)
+			if e != nil {
+				t.Fatal(e)
+			}
+			want, e := restored.ListObjectPage(bucket, "", "", "", 100)
+			if e != nil || !reflect.DeepEqual(got, want) {
+				t.Fatal("stale alias", got, want, e)
+			}
+		}
+	}
+}

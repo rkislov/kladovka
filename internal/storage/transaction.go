@@ -149,9 +149,7 @@ func (s *Store) putLocked(polka, key string, body io.Reader, contentType, etag s
 	return meta, nil
 }
 func (s *Store) commitTransaction(dir string, tx transaction, inject bool) error {
-	if !s.catalogueExactNames {
-		clear(s.catalogues)
-	}
+	s.prepareCatalogueMutation(tx.Polka, tx.Key)
 	complete := false
 	defer func() {
 		if !complete {

@@ -21,7 +21,7 @@ import (
 	"github.com/rkislov/kladovka/internal/storage"
 )
 
-func eventually(t *testing.T, limit time.Duration, fn func() bool) {
+func eventually(t testing.TB, limit time.Duration, fn func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(limit)
 	for time.Now().Before(deadline) {
@@ -42,7 +42,7 @@ type fixture struct {
 	ready   []*atomic.Bool
 }
 
-func tcpAddress(t *testing.T) string {
+func tcpAddress(t testing.TB) string {
 	t.Helper()
 	l, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
@@ -52,7 +52,7 @@ func tcpAddress(t *testing.T) string {
 	l.Close()
 	return addr
 }
-func newFixture(t *testing.T) *fixture {
+func newFixture(t testing.TB) *fixture {
 	t.Helper()
 	f := &fixture{}
 	peers := map[string]string{}
@@ -118,7 +118,7 @@ func newFixture(t *testing.T) *fixture {
 	f.leader(t)
 	return f
 }
-func (f *fixture) leader(t *testing.T) int {
+func (f *fixture) leader(t testing.TB) int {
 	t.Helper()
 	leader := -1
 	eventually(t, 10*time.Second, func() bool {
@@ -132,7 +132,7 @@ func (f *fixture) leader(t *testing.T) int {
 	})
 	return leader
 }
-func (f *fixture) restart(t *testing.T, i int) {
+func (f *fixture) restart(t testing.TB, i int) {
 	t.Helper()
 	f.current[i].Store(nil)
 	f.nodes[i].Close()
