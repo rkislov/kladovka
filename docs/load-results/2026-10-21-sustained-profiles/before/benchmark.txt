@@ -1,0 +1,12 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/rkislov/kladovka/internal/consensus
+cpu: Apple M4
+BenchmarkProfileSustainedPUT-10    	       1	78296484375 ns/op	   3.43 MB/s	16130663440 B/op	 1479591 allocs/op
+--- BENCH: BenchmarkProfileSustainedPUT-10
+    profile_test.go:106: heap_alloc=20145096 heap_inuse=22953984 heap_sys=65929216 total_alloc_delta=16130663440 gc_delta=1007 pause_ns_delta=8791819820
+    profile_test.go:108: node 0 bolt stats: {TxStats:{PageCount:77125 PageAlloc:1263616000 CursorCount:6747 NodeCount:3632 NodeDeref:28 Rebalance:1012 RebalanceTime:1.048417ms Split:768 Spill:3884 SpillTime:1.608979665s Write:5978 WriteTime:25.066295129s} FreePageN:8230 PendingPageN:93 FreeAlloc:136364032 FreelistInuse:66600 TxN:1552 OpenTxN:0}
+    profile_test.go:108: node 1 bolt stats: {TxStats:{PageCount:77166 PageAlloc:1264287744 CursorCount:6747 NodeCount:3595 NodeDeref:28 Rebalance:938 RebalanceTime:1.698958ms Split:768 Spill:3884 SpillTime:1.587039963s Write:5978 WriteTime:24.85084184s} FreePageN:5985 PendingPageN:91 FreeAlloc:99549184 FreelistInuse:48624 TxN:1552 OpenTxN:0}
+    profile_test.go:108: node 2 bolt stats: {TxStats:{PageCount:77189 PageAlloc:1264664576 CursorCount:16063 NodeCount:3618 NodeDeref:28 Rebalance:982 RebalanceTime:1.966167ms Split:768 Spill:3885 SpillTime:733.637332ms Write:5979 WriteTime:20.612011432s} FreePageN:7284 PendingPageN:92 FreeAlloc:120848384 FreelistInuse:59024 TxN:6210 OpenTxN:0}
+PASS
+ok  	github.com/rkislov/kladovka/internal/consensus	81.451s
