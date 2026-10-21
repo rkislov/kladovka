@@ -31,13 +31,16 @@ def run(binary, root, args, result):
         resources, observations, monitor_errors = [], [], []
         phase = ['warmup']
 
+        def sample_resource(label):
+            rss, cpu = process_usage(pids)
+            resources.append(dict(seconds=time.monotonic()-origin, phase=label,
+                                  rss_mib=rss/1024, cpu_seconds=cpu))
+
         def monitor():
             counter = 0
             while not stopped.is_set():
                 try:
-                    rss, cpu = process_usage(pids)
-                    resources.append(dict(seconds=time.monotonic()-origin, phase=phase[0],
-                                          rss_mib=rss/1024, cpu_seconds=cpu))
+                    sample_resource(phase[0])
                     if counter % 4 == 0:
                         states = [controls['admin'](i, '/cluster')['consensus'] for i in range(3)]
                         observations.append(dict(seconds=time.monotonic()-origin, phase=phase[0],
@@ -69,9 +72,11 @@ def run(binary, root, args, result):
             warmup = writes(range(args.warmup))
             require(all(x['error'] is None for x in warmup), 'warmup failed')
             phase[0] = 'put'
+            sample_resource('put')
             start = time.monotonic()
             samples = writes(range(args.warmup, len(bodies)))
             elapsed = time.monotonic()-start
+            sample_resource('put')
             result['put'] = dict(seconds=elapsed, mib_per_second=args.objects*args.size/(1 << 20)/elapsed,
                 p50_ms=percentile([s['ms'] for s in samples], 50),
                 p95_ms=percentile([s['ms'] for s in samples], 95),
@@ -96,6 +101,7 @@ def run(binary, root, args, result):
             phase[0] = 'idle'
             # Observe normal runtime scavenging; no forced GC or process restart.
             stopped.wait(args.idle_seconds)
+            sample_resource('idle')
             phase[0] = 'verify'
             for i, key in enumerate(keys):
                 for node in range(3):
