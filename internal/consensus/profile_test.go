@@ -76,9 +76,9 @@ func BenchmarkProfileSustainedPUT(b *testing.B) {
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
 	b.ResetTimer()
-	b.SetBytes(64 << 20)
+	b.SetBytes(256 << 20)
 	b.ReportAllocs()
-	for round := 0; round < 16*b.N; round++ {
+	for round := 0; round < 64*b.N; round++ {
 		var wg sync.WaitGroup
 		errs := make(chan error, 4)
 		for w := 0; w < 4; w++ {
