@@ -114,9 +114,9 @@ def measure(name, count, concurrency, operation, pids):
 
 
 @contextmanager
-def servers(binary, mode, root, object_bytes):
+def servers(binary, mode, root, object_bytes, controls=None):
     count = 1 if mode == 'legacy' else 3
-    sockets, processes, logs = [], [], []
+    sockets, processes, logs, environments = [], [], [], []
     access, secret = 'load-pilot', 'disposable-load-pilot-secret'
     try:
         for _ in range(count * 2):
@@ -143,6 +143,7 @@ def servers(binary, mode, root, object_bytes):
                         'MAX_OBJECT_SIZE': str(max(object_bytes, 1 << 20)), 'MAX_TEMP_BYTES': str(max(object_bytes * 8, 16 << 20)),
                         'MAX_CONCURRENT_UPLOADS': '4', 'MIN_FREE_DISK_BYTES': str(256 << 20),
                         'VERIFY_OBJECT_CHECKSUM': 'true', 'CLEANUP_INTERVAL_SEC': '600'})
+            environments.append(env)
             log = (root / f'node-{index}.log').open('w')
             logs.append(log)
             processes.append(subprocess.Popen([str(binary)], cwd=root, env=env, stdout=log, stderr=log))
@@ -178,6 +179,20 @@ def servers(binary, mode, root, object_bytes):
                         request_checksum_calculation='when_required', response_checksum_validation='when_required',
                         connect_timeout=3, read_timeout=30, max_pool_connections=8,
                         retries={'total_max_attempts': 1}))
+        if controls is not None:
+            def stop(index):
+                process = processes[index]
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=35)
+
+            def start(index):
+                require(processes[index].poll() is not None, 'node is already running')
+                env = {**environments[index], 'RAFT_BOOTSTRAP': 'false'}
+                processes[index] = subprocess.Popen([str(binary)], cwd=root, env=env,
+                                                    stdout=logs[index], stderr=logs[index])
+
+            controls.update(stop=stop, start=start, admin=admin)
         try:
             yield client, [p.pid for p in processes], {'nodes': count, 'replication_factor': count,
                   'route': 'follower to leader' if mode == 'consensus' else 'direct',
