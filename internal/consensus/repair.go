@@ -270,7 +270,6 @@ func (s *Store) repairLoop(ctx context.Context) {
 	var q repairQueue
 	var chunkCursor, recordCursor string
 	var refreshed time.Time
-	lastPrune := time.Now()
 	chunkRetries := map[string]*repairWork{}
 	for {
 		select {
@@ -283,12 +282,9 @@ func (s *Store) repairLoop(ctx context.Context) {
 			s.reconcileMaintenance()
 			s.reconcileMembership()
 			s.reconcileReplacement()
-			if time.Since(lastPrune) >= time.Minute && s.IsLeader() && s.writeMu.TryLock() {
-				if s.Barrier() == nil {
-					_ = s.apply(command{Kind: "prune"})
-				}
+			if s.IsLeader() && s.writeMu.TryLock() {
+				s.pruneIfDue()
 				s.writeMu.Unlock()
-				lastPrune = time.Now()
 			}
 			hashes, buckets := s.refreshRepairQueue(&q, &recordCursor)
 			live := make(map[string]bool, len(hashes))
@@ -348,4 +344,18 @@ func (s *Store) repairLoop(ctx context.Context) {
 		s.repairError = last
 		s.repairMu.Unlock()
 	}
+}
+
+// pruneIfDue requires writeMu. The foreground write path also calls this so
+// sustained writers cannot starve the repair loop's opportunistic TryLock.
+// Run only between complete writes: pending chunks must never be pruned.
+func (s *Store) pruneIfDue() {
+	if time.Since(s.lastPruneAttempt) < time.Minute || !s.IsLeader() {
+		return
+	}
+	if s.Barrier() == nil {
+		_ = s.apply(command{Kind: "prune"})
+	}
+	// Bound failed maintenance attempts too, as in the background-only path.
+	s.lastPruneAttempt = time.Now()
 }

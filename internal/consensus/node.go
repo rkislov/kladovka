@@ -34,6 +34,7 @@ type Store struct {
 	transport          *raft.NetworkTransport
 	logs               *bolt.BoltStore
 	writeMu            sync.Mutex
+	lastPruneAttempt   time.Time // guarded by writeMu
 	cacheMu            sync.Mutex
 	ctx                context.Context
 	repairMu           sync.Mutex
@@ -281,7 +282,7 @@ func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Stor
 		return fail(e)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Store{Store: base, ctx: ctx, cfg: cfg, reg: reg, fsm: m, raft: r, transport: transport, logs: logs, repairIndex: map[string]uint64{}, cancel: cancel, done: make(chan struct{}), localID: raft.ServerID(localID)}
+	s := &Store{lastPruneAttempt: time.Now(), Store: base, ctx: ctx, cfg: cfg, reg: reg, fsm: m, raft: r, transport: transport, logs: logs, repairIndex: map[string]uint64{}, cancel: cancel, done: make(chan struct{}), localID: raft.ServerID(localID)}
 	go s.repairLoop(ctx)
 	return s, nil
 }

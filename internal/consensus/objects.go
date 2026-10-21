@@ -42,6 +42,7 @@ func (s *Store) CreatePolka(name string) error {
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	s.pruneIfDue()
 	return s.apply(command{Kind: "create", Polka: name})
 }
 func (s *Store) DeletePolka(name string) error {
@@ -50,6 +51,7 @@ func (s *Store) DeletePolka(name string) error {
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	s.pruneIfDue()
 	return s.apply(command{Kind: "drop", Polka: name})
 }
 func (s *Store) PolkaExists(name string) (bool, error) {
@@ -76,6 +78,7 @@ func (s *Store) PutObjectWithETag(polka, key string, body io.Reader, contentType
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	s.pruneIfDue()
 	if e := s.Barrier(); e != nil {
 		return nil, e
 	}
@@ -186,6 +189,7 @@ func (s *Store) DeleteObject(polka, key string) error {
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	s.pruneIfDue()
 	return s.apply(command{Kind: "delete", Polka: polka, Key: key})
 }
 func (s *Store) record(polka, key string) (Record, error) {
@@ -413,6 +417,7 @@ func (b *partBudget) Read(p []byte) (int, error) {
 func (s *Store) UploadPart(id string, number int, body io.Reader) (*storage.MultipartPart, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	s.pruneIfDue()
 	if e := s.Barrier(); e != nil {
 		return nil, e
 	}
