@@ -30,6 +30,10 @@ jobs:
           python3 scripts/load_pilot.py --binary ./bin/kladovka --stages 10,25 --samples 3 --output load-pilot-ci.json
       - name: Consensus materialization catch-up and restart
         run: python3 scripts/materialization_pilot.py --binary ./bin/kladovka --objects 32 --output materialization-ci.json
+      - name: Cold/mixed LIST and unique-object workload contract
+        run: |
+          python3 -m unittest discover -s scripts -p test_workload_pilot.py
+          python3 scripts/workload_pilot.py --binary ./bin/kladovka --catalog-objects 25 --cold-samples 1 --samples 3 --mixed-cycles 8 --large-bytes 1048576 --large-count 2 --output workload-ci.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -37,6 +41,7 @@ jobs:
           path: |
             load-pilot-ci.json
             materialization-ci.json
+            workload-ci.json
           if-no-files-found: ignore
   ui:
     runs-on: ubuntu-latest
