@@ -337,9 +337,7 @@ func (s *Store) SetETag(polka, key, etag string) error {
 	if err != nil {
 		return err
 	}
-	if !s.catalogueExactNames {
-		clear(s.catalogues)
-	}
+	s.prepareCatalogueMutation(polka, key)
 	meta.ETag = etag
 	if err := s.writeSideMeta(op, meta); err != nil {
 		pp, _ := s.polkaPath(polka)
