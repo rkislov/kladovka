@@ -259,3 +259,9 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 ```
+
+### Презентация и иллюстрации
+
+- [Презентация продукта и эксплуатации](docs/presentation/README.md) — 23 слайда, содержание и исходник сборки.
+- [Светлая коллекция стритарта](docs/wallpapers/joyful/README.md) — пять новых сюжетов.
+- [Полное руководство пользователя](docs/USER.md) и [руководство администратора](docs/ADMIN.md), редакция 21 октября 2026 года.
