@@ -39,7 +39,10 @@ func Start(t testing.TB, name string) func() {
 		}
 		runtime.SetBlockProfileRate(0)
 		runtime.SetMutexProfileFraction(old)
-		for _, kind := range []string{"block", "mutex", "allocs"} {
+		for _, kind := range []string{"block", "mutex", "allocs", "heap"} {
+			if kind == "heap" {
+				runtime.GC()
+			}
 			f, err := os.OpenFile(filepath.Join(dir, name+"."+kind+".pprof"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 			if err != nil {
 				t.Error(err)
