@@ -1,0 +1,25 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/rkislov/kladovka/internal/consensus
+cpu: Apple M4
+BenchmarkProfileOverwriteHeap
+    profile_test.go:170: epoch=0 heap_alloc=14486536 heap_objects=4942 goroutines=34
+    profile_test.go:170: epoch=1 heap_alloc=12115608 heap_objects=4807 goroutines=34
+    profile_test.go:170: epoch=2 heap_alloc=12202784 heap_objects=4870 goroutines=34
+    profile_test.go:170: epoch=3 heap_alloc=12339136 heap_objects=5627 goroutines=34
+    profile_test.go:170: epoch=4 heap_alloc=12987656 heap_objects=5236 goroutines=34
+    profile_test.go:170: epoch=5 heap_alloc=13629936 heap_objects=5681 goroutines=34
+    profile_test.go:170: epoch=6 heap_alloc=13548904 heap_objects=5282 goroutines=34
+    profile_test.go:170: epoch=7 heap_alloc=13516888 heap_objects=5319 goroutines=34
+BenchmarkProfileOverwriteHeap-10    	       1	73593394208 ns/op
+    profile_test.go:170: epoch=0 heap_alloc=17469848 heap_objects=6776 goroutines=33
+    profile_test.go:170: epoch=1 heap_alloc=17192216 heap_objects=6603 goroutines=33
+    profile_test.go:170: epoch=2 heap_alloc=17609560 heap_objects=6758 goroutines=33
+    profile_test.go:170: epoch=3 heap_alloc=17718912 heap_objects=7267 goroutines=33
+    profile_test.go:170: epoch=4 heap_alloc=17199384 heap_objects=6797 goroutines=33
+    profile_test.go:170: epoch=5 heap_alloc=18217552 heap_objects=7418 goroutines=33
+    profile_test.go:170: epoch=6 heap_alloc=18671600 heap_objects=6862 goroutines=33
+    profile_test.go:170: epoch=7 heap_alloc=19281728 heap_objects=6924 goroutines=33
+BenchmarkProfileOverwriteHeap-10    	       1	74811851625 ns/op
+PASS
+ok  	github.com/rkislov/kladovka/internal/consensus	149.240s

@@ -1,0 +1,2717 @@
+{
+  "status": "passed",
+  "started_utc": "2026-10-21T08:09:52.327181+00:00",
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "settings": {
+    "binary": "/tmp/kladovka-overwrite-final",
+    "output": "/tmp/kladovka-overwrite-after.json",
+    "keys": 32,
+    "size": 1048576,
+    "seconds": 600,
+    "idle_seconds": 75
+  },
+  "binary_sha256": "8a219b17cbe67057b08d14ffbdf6e56944cbb20d92cc7c888b31eb8dbf1f6396",
+  "harness_sha256": "7c8391a2dac9c01cfe0380801dafd9b51fca0b0bd90a5d3dbb0130813a681daa",
+  "topology": {
+    "nodes": 3,
+    "replication_factor": 3,
+    "route": "follower to leader",
+    "initial_leader": 2,
+    "target_node": 0
+  },
+  "samples": [
+    {
+      "seconds": 0.01094520900369389,
+      "phase": "start",
+      "rss_mib": 55.03125,
+      "cpu_seconds": 0.14,
+      "nodes": [
+        {
+          "chunks": 0,
+          "chunk_bytes": 0,
+          "raft_bytes": 131072
+        },
+        {
+          "chunks": 0,
+          "chunk_bytes": 0,
+          "raft_bytes": 131072
+        },
+        {
+          "chunks": 0,
+          "chunk_bytes": 0,
+          "raft_bytes": 131072
+        }
+      ]
+    },
+    {
+      "seconds": 9.131110334004916,
+      "phase": "write",
+      "rss_mib": 147.578125,
+      "cpu_seconds": 3.3,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 52576256
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 52576256
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 52576256
+        }
+      ]
+    },
+    {
+      "seconds": 18.899546583998017,
+      "phase": "write",
+      "rss_mib": 178.390625,
+      "cpu_seconds": 6.88,
+      "nodes": [
+        {
+          "chunks": 256,
+          "chunk_bytes": 67108864,
+          "raft_bytes": 104808448
+        },
+        {
+          "chunks": 256,
+          "chunk_bytes": 67108864,
+          "raft_bytes": 104808448
+        },
+        {
+          "chunks": 256,
+          "chunk_bytes": 67108864,
+          "raft_bytes": 104808448
+        }
+      ]
+    },
+    {
+      "seconds": 28.61654333399929,
+      "phase": "write",
+      "rss_mib": 128.9375,
+      "cpu_seconds": 10.51,
+      "nodes": [
+        {
+          "chunks": 384,
+          "chunk_bytes": 100663296,
+          "raft_bytes": 156368896
+        },
+        {
+          "chunks": 384,
+          "chunk_bytes": 100663296,
+          "raft_bytes": 156368896
+        },
+        {
+          "chunks": 384,
+          "chunk_bytes": 100663296,
+          "raft_bytes": 156368896
+        }
+      ]
+    },
+    {
+      "seconds": 38.49448391699843,
+      "phase": "write",
+      "rss_mib": 249.90625,
+      "cpu_seconds": 14.54,
+      "nodes": [
+        {
+          "chunks": 512,
+          "chunk_bytes": 134217728,
+          "raft_bytes": 191643648
+        },
+        {
+          "chunks": 512,
+          "chunk_bytes": 134217728,
+          "raft_bytes": 191643648
+        },
+        {
+          "chunks": 512,
+          "chunk_bytes": 134217728,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 48.32663899999898,
+      "phase": "write",
+      "rss_mib": 361.765625,
+      "cpu_seconds": 18.73,
+      "nodes": [
+        {
+          "chunks": 640,
+          "chunk_bytes": 167772160,
+          "raft_bytes": 243515392
+        },
+        {
+          "chunks": 640,
+          "chunk_bytes": 167772160,
+          "raft_bytes": 243515392
+        },
+        {
+          "chunks": 640,
+          "chunk_bytes": 167772160,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 58.27063662499859,
+      "phase": "write",
+      "rss_mib": 276.390625,
+      "cpu_seconds": 23.34,
+      "nodes": [
+        {
+          "chunks": 768,
+          "chunk_bytes": 201326592,
+          "raft_bytes": 277708800
+        },
+        {
+          "chunks": 768,
+          "chunk_bytes": 201326592,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 768,
+          "chunk_bytes": 201326592,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 68.65049841700238,
+      "phase": "write",
+      "rss_mib": 407.28125,
+      "cpu_seconds": 28.27,
+      "nodes": [
+        {
+          "chunks": 256,
+          "chunk_bytes": 67108864,
+          "raft_bytes": 277708800
+        },
+        {
+          "chunks": 256,
+          "chunk_bytes": 67108864,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 256,
+          "chunk_bytes": 67108864,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 78.76654516700364,
+      "phase": "write",
+      "rss_mib": 490.890625,
+      "cpu_seconds": 32.91,
+      "nodes": [
+        {
+          "chunks": 383,
+          "chunk_bytes": 100401152,
+          "raft_bytes": 277708800
+        },
+        {
+          "chunks": 384,
+          "chunk_bytes": 100663296,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 384,
+          "chunk_bytes": 100663296,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 88.34744295899873,
+      "phase": "write",
+      "rss_mib": 570.828125,
+      "cpu_seconds": 37.19,
+      "nodes": [
+        {
+          "chunks": 512,
+          "chunk_bytes": 134217728,
+          "raft_bytes": 277708800
+        },
+        {
+          "chunks": 512,
+          "chunk_bytes": 134217728,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 512,
+          "chunk_bytes": 134217728,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 98.01119058400218,
+      "phase": "write",
+      "rss_mib": 651.0625,
+      "cpu_seconds": 41.88,
+      "nodes": [
+        {
+          "chunks": 640,
+          "chunk_bytes": 167772160,
+          "raft_bytes": 277708800
+        },
+        {
+          "chunks": 640,
+          "chunk_bytes": 167772160,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 640,
+          "chunk_bytes": 167772160,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 107.99962362500082,
+      "phase": "write",
+      "rss_mib": 734.6875,
+      "cpu_seconds": 46.5,
+      "nodes": [
+        {
+          "chunks": 768,
+          "chunk_bytes": 201326592,
+          "raft_bytes": 277708800
+        },
+        {
+          "chunks": 768,
+          "chunk_bytes": 201326592,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 768,
+          "chunk_bytes": 201326592,
+          "raft_bytes": 191643648
+        }
+      ]
+    },
+    {
+      "seconds": 118.50048270900152,
+      "phase": "write",
+      "rss_mib": 831.75,
+      "cpu_seconds": 51.61,
+      "nodes": [
+        {
+          "chunks": 896,
+          "chunk_bytes": 234881024,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 896,
+          "chunk_bytes": 234881024,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 896,
+          "chunk_bytes": 234881024,
+          "raft_bytes": 209289216
+        }
+      ]
+    },
+    {
+      "seconds": 129.00684391699906,
+      "phase": "write",
+      "rss_mib": 839.375,
+      "cpu_seconds": 55.69,
+      "nodes": [
+        {
+          "chunks": 252,
+          "chunk_bytes": 66060288,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 252,
+          "chunk_bytes": 66060288,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 252,
+          "chunk_bytes": 66060288,
+          "raft_bytes": 209289216
+        }
+      ]
+    },
+    {
+      "seconds": 139.34808170900214,
+      "phase": "write",
+      "rss_mib": 843.53125,
+      "cpu_seconds": 59.44,
+      "nodes": [
+        {
+          "chunks": 380,
+          "chunk_bytes": 99614720,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 380,
+          "chunk_bytes": 99614720,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 380,
+          "chunk_bytes": 99614720,
+          "raft_bytes": 209289216
+        }
+      ]
+    },
+    {
+      "seconds": 150.42819029200473,
+      "phase": "write",
+      "rss_mib": 847.3125,
+      "cpu_seconds": 63.32,
+      "nodes": [
+        {
+          "chunks": 508,
+          "chunk_bytes": 133169152,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 508,
+          "chunk_bytes": 133169152,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 508,
+          "chunk_bytes": 133169152,
+          "raft_bytes": 209289216
+        }
+      ]
+    },
+    {
+      "seconds": 163.1971632920031,
+      "phase": "write",
+      "rss_mib": 855.96875,
+      "cpu_seconds": 67.9,
+      "nodes": [
+        {
+          "chunks": 636,
+          "chunk_bytes": 166723584,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 636,
+          "chunk_bytes": 166723584,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 636,
+          "chunk_bytes": 166723584,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 175.7421509170017,
+      "phase": "write",
+      "rss_mib": 857.265625,
+      "cpu_seconds": 72.37,
+      "nodes": [
+        {
+          "chunks": 764,
+          "chunk_bytes": 200278016,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 764,
+          "chunk_bytes": 200278016,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 764,
+          "chunk_bytes": 200278016,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 187.36890058399877,
+      "phase": "write",
+      "rss_mib": 857.328125,
+      "cpu_seconds": 77.03,
+      "nodes": [
+        {
+          "chunks": 208,
+          "chunk_bytes": 54525952,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 208,
+          "chunk_bytes": 54525952,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 208,
+          "chunk_bytes": 54525952,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 200.112858667002,
+      "phase": "write",
+      "rss_mib": 857.53125,
+      "cpu_seconds": 81.78999999999999,
+      "nodes": [
+        {
+          "chunks": 336,
+          "chunk_bytes": 88080384,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 336,
+          "chunk_bytes": 88080384,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 336,
+          "chunk_bytes": 88080384,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 211.9826060839987,
+      "phase": "write",
+      "rss_mib": 857.734375,
+      "cpu_seconds": 85.99000000000001,
+      "nodes": [
+        {
+          "chunks": 464,
+          "chunk_bytes": 121634816,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 464,
+          "chunk_bytes": 121634816,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 464,
+          "chunk_bytes": 121634816,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 222.94544362500164,
+      "phase": "write",
+      "rss_mib": 857.828125,
+      "cpu_seconds": 89.87,
+      "nodes": [
+        {
+          "chunks": 592,
+          "chunk_bytes": 155189248,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 592,
+          "chunk_bytes": 155189248,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 592,
+          "chunk_bytes": 155189248,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 236.7522697500026,
+      "phase": "write",
+      "rss_mib": 857.96875,
+      "cpu_seconds": 94.44,
+      "nodes": [
+        {
+          "chunks": 720,
+          "chunk_bytes": 188743680,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 720,
+          "chunk_bytes": 188743680,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 720,
+          "chunk_bytes": 188743680,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 248.37323804200423,
+      "phase": "write",
+      "rss_mib": 858.09375,
+      "cpu_seconds": 99.1,
+      "nodes": [
+        {
+          "chunks": 216,
+          "chunk_bytes": 56623104,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 216,
+          "chunk_bytes": 56623104,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 216,
+          "chunk_bytes": 56623104,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 259.87560725000367,
+      "phase": "write",
+      "rss_mib": 858.1875,
+      "cpu_seconds": 103.4,
+      "nodes": [
+        {
+          "chunks": 344,
+          "chunk_bytes": 90177536,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 344,
+          "chunk_bytes": 90177536,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 344,
+          "chunk_bytes": 90177536,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 273.2555766670048,
+      "phase": "write",
+      "rss_mib": 860.296875,
+      "cpu_seconds": 108.11,
+      "nodes": [
+        {
+          "chunks": 472,
+          "chunk_bytes": 123731968,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 472,
+          "chunk_bytes": 123731968,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 472,
+          "chunk_bytes": 123731968,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 284.0401677500049,
+      "phase": "write",
+      "rss_mib": 860.984375,
+      "cpu_seconds": 112.69,
+      "nodes": [
+        {
+          "chunks": 600,
+          "chunk_bytes": 157286400,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 600,
+          "chunk_bytes": 157286400,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 600,
+          "chunk_bytes": 157286400,
+          "raft_bytes": 226213888
+        }
+      ]
+    },
+    {
+      "seconds": 295.3274911670014,
+      "phase": "write",
+      "rss_mib": 880.109375,
+      "cpu_seconds": 117.06,
+      "nodes": [
+        {
+          "chunks": 728,
+          "chunk_bytes": 190840832,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 728,
+          "chunk_bytes": 190840832,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 728,
+          "chunk_bytes": 190840832,
+          "raft_bytes": 243138560
+        }
+      ]
+    },
+    {
+      "seconds": 310.4916090420011,
+      "phase": "write",
+      "rss_mib": 915.59375,
+      "cpu_seconds": 122.39,
+      "nodes": [
+        {
+          "chunks": 212,
+          "chunk_bytes": 55574528,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 212,
+          "chunk_bytes": 55574528,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 212,
+          "chunk_bytes": 55574528,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 320.8189728750003,
+      "phase": "write",
+      "rss_mib": 910.484375,
+      "cpu_seconds": 126.4,
+      "nodes": [
+        {
+          "chunks": 340,
+          "chunk_bytes": 89128960,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 340,
+          "chunk_bytes": 89128960,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 340,
+          "chunk_bytes": 89128960,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 332.012549209001,
+      "phase": "write",
+      "rss_mib": 910.59375,
+      "cpu_seconds": 130.37,
+      "nodes": [
+        {
+          "chunks": 468,
+          "chunk_bytes": 122683392,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 468,
+          "chunk_bytes": 122683392,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 468,
+          "chunk_bytes": 122683392,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 345.6758351669996,
+      "phase": "write",
+      "rss_mib": 910.65625,
+      "cpu_seconds": 134.93,
+      "nodes": [
+        {
+          "chunks": 596,
+          "chunk_bytes": 156237824,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 596,
+          "chunk_bytes": 156237824,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 596,
+          "chunk_bytes": 156237824,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 356.34403258399834,
+      "phase": "write",
+      "rss_mib": 911.09375,
+      "cpu_seconds": 139.18,
+      "nodes": [
+        {
+          "chunks": 724,
+          "chunk_bytes": 189792256,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 724,
+          "chunk_bytes": 189792256,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 724,
+          "chunk_bytes": 189792256,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 371.5228852500004,
+      "phase": "write",
+      "rss_mib": 911.15625,
+      "cpu_seconds": 143.95,
+      "nodes": [
+        {
+          "chunks": 196,
+          "chunk_bytes": 51380224,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 196,
+          "chunk_bytes": 51380224,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 196,
+          "chunk_bytes": 51380224,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 381.99053454200475,
+      "phase": "write",
+      "rss_mib": 912.28125,
+      "cpu_seconds": 148.19,
+      "nodes": [
+        {
+          "chunks": 324,
+          "chunk_bytes": 84934656,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 324,
+          "chunk_bytes": 84934656,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 324,
+          "chunk_bytes": 84934656,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 394.73420020900085,
+      "phase": "write",
+      "rss_mib": 912.390625,
+      "cpu_seconds": 152.56,
+      "nodes": [
+        {
+          "chunks": 452,
+          "chunk_bytes": 118489088,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 452,
+          "chunk_bytes": 118489088,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 452,
+          "chunk_bytes": 118489088,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 407.70270295900264,
+      "phase": "write",
+      "rss_mib": 900.78125,
+      "cpu_seconds": 157.05,
+      "nodes": [
+        {
+          "chunks": 579,
+          "chunk_bytes": 151781376,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 580,
+          "chunk_bytes": 152043520,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 580,
+          "chunk_bytes": 152043520,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 417.8864187920044,
+      "phase": "write",
+      "rss_mib": 902.65625,
+      "cpu_seconds": 160.99,
+      "nodes": [
+        {
+          "chunks": 708,
+          "chunk_bytes": 185597952,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 708,
+          "chunk_bytes": 185597952,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 708,
+          "chunk_bytes": 185597952,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 431.8543902090023,
+      "phase": "write",
+      "rss_mib": 905.140625,
+      "cpu_seconds": 165.86,
+      "nodes": [
+        {
+          "chunks": 212,
+          "chunk_bytes": 55574528,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 212,
+          "chunk_bytes": 55574528,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 212,
+          "chunk_bytes": 55574528,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 443.7595451669986,
+      "phase": "write",
+      "rss_mib": 905.28125,
+      "cpu_seconds": 170.12,
+      "nodes": [
+        {
+          "chunks": 340,
+          "chunk_bytes": 89128960,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 340,
+          "chunk_bytes": 89128960,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 340,
+          "chunk_bytes": 89128960,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 454.53790304200083,
+      "phase": "write",
+      "rss_mib": 907.140625,
+      "cpu_seconds": 174.32,
+      "nodes": [
+        {
+          "chunks": 468,
+          "chunk_bytes": 122683392,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 468,
+          "chunk_bytes": 122683392,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 468,
+          "chunk_bytes": 122683392,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 466.9396055420002,
+      "phase": "write",
+      "rss_mib": 907.171875,
+      "cpu_seconds": 178.38,
+      "nodes": [
+        {
+          "chunks": 596,
+          "chunk_bytes": 156237824,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 596,
+          "chunk_bytes": 156237824,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 596,
+          "chunk_bytes": 156237824,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 479.0669849170008,
+      "phase": "write",
+      "rss_mib": 907.21875,
+      "cpu_seconds": 182.75,
+      "nodes": [
+        {
+          "chunks": 724,
+          "chunk_bytes": 189792256,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 724,
+          "chunk_bytes": 189792256,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 724,
+          "chunk_bytes": 189792256,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 489.7275390420036,
+      "phase": "write",
+      "rss_mib": 907.265625,
+      "cpu_seconds": 186.94,
+      "nodes": [
+        {
+          "chunks": 220,
+          "chunk_bytes": 57671680,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 220,
+          "chunk_bytes": 57671680,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 220,
+          "chunk_bytes": 57671680,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 502.2383379169987,
+      "phase": "write",
+      "rss_mib": 907.375,
+      "cpu_seconds": 191.14,
+      "nodes": [
+        {
+          "chunks": 348,
+          "chunk_bytes": 91226112,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 348,
+          "chunk_bytes": 91226112,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 348,
+          "chunk_bytes": 91226112,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 514.12786375,
+      "phase": "write",
+      "rss_mib": 907.71875,
+      "cpu_seconds": 195.24,
+      "nodes": [
+        {
+          "chunks": 476,
+          "chunk_bytes": 124780544,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 476,
+          "chunk_bytes": 124780544,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 476,
+          "chunk_bytes": 124780544,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 526.118657250001,
+      "phase": "write",
+      "rss_mib": 679.578125,
+      "cpu_seconds": 199.93,
+      "nodes": [
+        {
+          "chunks": 604,
+          "chunk_bytes": 158334976,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 604,
+          "chunk_bytes": 158334976,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 604,
+          "chunk_bytes": 158334976,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 539.3475237090024,
+      "phase": "write",
+      "rss_mib": 721.203125,
+      "cpu_seconds": 204.8,
+      "nodes": [
+        {
+          "chunks": 732,
+          "chunk_bytes": 191889408,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 732,
+          "chunk_bytes": 191889408,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 732,
+          "chunk_bytes": 191889408,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 551.7601743339983,
+      "phase": "write",
+      "rss_mib": 761.140625,
+      "cpu_seconds": 209.53,
+      "nodes": [
+        {
+          "chunks": 228,
+          "chunk_bytes": 59768832,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 228,
+          "chunk_bytes": 59768832,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 228,
+          "chunk_bytes": 59768832,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 563.1258795000031,
+      "phase": "write",
+      "rss_mib": 770.671875,
+      "cpu_seconds": 213.9,
+      "nodes": [
+        {
+          "chunks": 356,
+          "chunk_bytes": 93323264,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 356,
+          "chunk_bytes": 93323264,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 356,
+          "chunk_bytes": 93323264,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 576.2547084590042,
+      "phase": "write",
+      "rss_mib": 771.828125,
+      "cpu_seconds": 218.60000000000002,
+      "nodes": [
+        {
+          "chunks": 484,
+          "chunk_bytes": 126877696,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 484,
+          "chunk_bytes": 126877696,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 484,
+          "chunk_bytes": 126877696,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 588.1504789590035,
+      "phase": "write",
+      "rss_mib": 793.59375,
+      "cpu_seconds": 223.16,
+      "nodes": [
+        {
+          "chunks": 612,
+          "chunk_bytes": 160432128,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 612,
+          "chunk_bytes": 160432128,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 612,
+          "chunk_bytes": 160432128,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 598.8918324999977,
+      "phase": "write",
+      "rss_mib": 821.65625,
+      "cpu_seconds": 227.70999999999998,
+      "nodes": [
+        {
+          "chunks": 740,
+          "chunk_bytes": 193986560,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 740,
+          "chunk_bytes": 193986560,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 740,
+          "chunk_bytes": 193986560,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 612.5833655000024,
+      "phase": "write",
+      "rss_mib": 822.75,
+      "cpu_seconds": 233.07999999999998,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 616.1277690839997,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.16,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 618.1515361249985,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.22,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 620.1642810839985,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.26999999999998,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 622.1815033750026,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.36,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 624.2016741250045,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.45,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 626.2353662919995,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.56,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 628.2632554590018,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.65,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 630.3177088750017,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.76,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 632.3461902920026,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 234.88,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 634.3754682500003,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 235.12,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 636.407136709,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 235.23,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 638.4422012089999,
+      "phase": "idle",
+      "rss_mib": 822.890625,
+      "cpu_seconds": 235.34,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 640.468127209002,
+      "phase": "idle",
+      "rss_mib": 817.234375,
+      "cpu_seconds": 235.44,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 642.499682624999,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 235.55,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 644.5308385840035,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 235.64999999999998,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 646.5643027090046,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 235.76,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 648.603564709003,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 235.87,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 650.6349521669981,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 235.99,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 652.6646420840043,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 236.10000000000002,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 654.6976212500012,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 236.36,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 656.7328175840012,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 236.48000000000002,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 658.7651661249984,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 236.59,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 660.7979227500036,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 236.7,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 662.8213557499985,
+      "phase": "idle",
+      "rss_mib": 814.546875,
+      "cpu_seconds": 236.89,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 664.8581219589978,
+      "phase": "idle",
+      "rss_mib": 814.5625,
+      "cpu_seconds": 237.1,
+      "nodes": [
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 200,
+          "chunk_bytes": 52428800,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 666.8895017090035,
+      "phase": "idle",
+      "rss_mib": 814.5625,
+      "cpu_seconds": 237.26999999999998,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 668.9200719590008,
+      "phase": "idle",
+      "rss_mib": 814.5625,
+      "cpu_seconds": 237.39,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 670.9310175840001,
+      "phase": "idle",
+      "rss_mib": 813.25,
+      "cpu_seconds": 237.44,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 672.9562094170033,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 237.49,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 674.9789822090024,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 237.59,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 677.0002463339988,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 237.67000000000002,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 679.0237019999986,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 237.75,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 681.0529921249981,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 237.86,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 683.0846934590008,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 238.0,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 685.1153604589999,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 238.11,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 687.1450872920032,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 238.23000000000002,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 689.1727263339999,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 238.34,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    },
+    {
+      "seconds": 691.1452441670044,
+      "phase": "idle",
+      "rss_mib": 810.5,
+      "cpu_seconds": 238.45,
+      "nodes": [
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 311902208
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 294977536
+        },
+        {
+          "chunks": 128,
+          "chunk_bytes": 33554432,
+          "raft_bytes": 278740992
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "label": "continuous overwrites",
+      "seconds": 3.521595542006253,
+      "boundary": 11902,
+      "copies": 96,
+      "gets": 32,
+      "states": [
+        {
+          "active_requests": 0,
+          "applied_index": 11902,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61892",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 11902,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61893",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 11902,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61894",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Leader",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        }
+      ]
+    },
+    {
+      "label": "idle",
+      "seconds": 2.379299166997953,
+      "boundary": 11971,
+      "copies": 96,
+      "gets": 32,
+      "states": [
+        {
+          "active_requests": 0,
+          "applied_index": 11971,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61892",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 11971,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61893",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 11971,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61894",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Leader",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        }
+      ]
+    },
+    {
+      "label": "offline follower latest generations",
+      "seconds": 12.157186000004003,
+      "boundary": 12491,
+      "copies": 96,
+      "gets": 32,
+      "states": [
+        {
+          "active_requests": 0,
+          "applied_index": 12491,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61892",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 12491,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61893",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 12491,
+          "leader": "http://127.0.0.1:61894",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61894",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Leader",
+          "target_rf": 3,
+          "term": "2",
+          "tombstones": 0,
+          "voters": 3
+        }
+      ]
+    },
+    {
+      "label": "full restart and missing cache recovery",
+      "seconds": 18.433295791997807,
+      "boundary": 12491,
+      "copies": 96,
+      "gets": 32,
+      "states": [
+        {
+          "active_requests": 0,
+          "applied_index": 12491,
+          "leader": "http://127.0.0.1:61893",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61892",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "3",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 12491,
+          "leader": "http://127.0.0.1:61893",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61893",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Leader",
+          "target_rf": 3,
+          "term": "3",
+          "tombstones": 0,
+          "voters": 3
+        },
+        {
+          "active_requests": 0,
+          "applied_index": 12491,
+          "leader": "http://127.0.0.1:61893",
+          "maintenance": null,
+          "maintenance_error": "",
+          "maintenance_local": false,
+          "members": [
+            {
+              "node_id": "127.0.0.1:61892",
+              "raft_id": "127.0.0.1:61892",
+              "address": "127.0.0.1:61895",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61893",
+              "raft_id": "127.0.0.1:61893",
+              "address": "127.0.0.1:61896",
+              "suffrage": "Voter"
+            },
+            {
+              "node_id": "127.0.0.1:61894",
+              "raft_id": "127.0.0.1:61894",
+              "address": "127.0.0.1:61897",
+              "suffrage": "Voter"
+            }
+          ],
+          "membership_change": null,
+          "membership_error": "",
+          "mode": "consensus",
+          "quorum": 2,
+          "raft_id": "127.0.0.1:61894",
+          "repair_error": "",
+          "repair_pending": 0,
+          "replacement": null,
+          "replacement_error": "",
+          "state": "Follower",
+          "target_rf": 3,
+          "term": "3",
+          "tombstones": 0,
+          "voters": 3
+        }
+      ]
+    }
+  ],
+  "generations": 53,
+  "vmmap": [
+    {
+      "args": [
+        "vmmap",
+        "-summary",
+        "72871"
+      ],
+      "returncode": 0,
+      "stdout": "Process:         kladovka-overwrite-final [72871]\nPath:            /private/tmp/kladovka-overwrite-final\nLoad Address:    0x100200000\nIdentifier:      kladovka-overwrite-final\nVersion:         ???\nCode Type:       ARM64\nPlatform:        macOS\nParent Process:  Python [72620]\nTarget Type:     live task\n\nDate/Time:       2026-10-21 11:21:28.216 +0300\nLaunch Time:     2026-10-21 11:09:52.346 +0300\nOS Version:      macOS 27.0.1 (26A434)\nReport Version:  7\nAnalysis Tool:   /usr/bin/vmmap\n\nPhysical footprint:         18.0M\nPhysical footprint (peak):  30.9M\nIdle exit:                  untracked\n----\n\nReadOnly portion of Libraries: Total=1.9G resident=175.0M(9%) swapped_out_or_unallocated=1.7G(91%)\nWritable regions: Total=683.5M written=18.8M(3%) resident=23.1M(3%) swapped_out=3520K(1%) unallocated=657.0M(96%)\n\n                                VIRTUAL RESIDENT    DIRTY  SWAPPED VOLATILE   NONVOL    EMPTY   REGION \nREGION TYPE                        SIZE     SIZE     SIZE     SIZE     SIZE     SIZE     SIZE    COUNT (non-coalesced) \n===========                     ======= ========    =====  ======= ========   ======    =====  ======= \nActivity Tracing                   256K      16K       0K      16K       0K      16K       0K        1 \nGuard                            385.0G       0K       0K       0K       0K       0K       0K        1 \nMalloc Guard Page                  192K       0K       0K       0K       0K       0K       0K       12         see MALLOC ZONE table below\nMalloc Metadata                    304K     112K     112K     192K       0K       0K       0K       13         see MALLOC ZONE table below\nMalloc Nano                      512.0M     176K     176K     880K       0K       0K       0K        1         see MALLOC ZONE table below\nMalloc Small                      16.0M      80K      80K       0K       0K       0K       0K        2         see MALLOC ZONE table below\nMalloc Small (empty)              64.0M     256K     256K       0K       0K       0K       0K        8         see MALLOC ZONE table below\nMalloc Tiny                       9216K       0K       0K     288K       0K       0K       0K        9         see MALLOC ZONE table below\nMalloc Tiny (empty)               1024K       0K       0K      32K       0K       0K       0K        1         see MALLOC ZONE table below\nOS Alloc Once                       32K       0K       0K      16K       0K       0K       0K        1 \nStack                             18.6M     336K     336K      48K       0K       0K       0K       21 \nStack Guard                       56.3M       0K       0K       0K       0K       0K       0K       21 \nUntagged                           1.2G    21.4M    11.1M    2064K       0K       0K       0K       82 \n__AUTH                            1494K     684K       0K       48       0K       0K       0K      168 \n__AUTH_CONST                      18.7M    10.1M       0K       0K       0K       0K       0K      327 \n__CTF                               824      824       0K       0K       0K       0K       0K        1 \n__DATA                            5346K    2216K     384K      61K       0K       0K       0K      336 \n__DATA_CONST                      21.2M    12.6M     960K      16K       0K       0K       0K      325 \n__DATA_DIRTY                      1297K     520K      80K     212K       0K       0K       0K      286 \n__FONT_DATA                        2352     2352       0K       0K       0K       0K       0K        1 \n__LINKEDIT                         1.6G    30.1M       0K       0K       0K       0K       0K        2 \n__OBJC_RO                        118.0M    46.1M       0K       0K       0K       0K       0K        1 \n__OBJC_RW                         2735K    1680K       0K      47K       0K       0K       0K        1 \n__TEXT                           306.2M   144.9M       0K       0K       0K       0K       0K      390 \n__TPRO_CONST                       132K      52K      16K      32K       0K       0K       0K        4 \nmapped file                      512.0M   269.9M       0K       0K       0K       0K       0K        1 \npage table in kernel               673K     673K     673K       0K       0K       0K       0K        1 \nshared memory                       48K      48K      48K       0K       0K       0K       0K        2 \nunused but dirty shlib __DATA       95K      32K      32K      63K       0K       0K       0K       37 \n===========                     ======= ========    =====  ======= ========   ======    =====  ======= \nTOTAL                            389.4G   541.8M    14.2M    3968K       0K      16K       0K     2056 \n\n                                 VIRTUAL   RESIDENT      DIRTY    SWAPPED ALLOCATION      BYTES DIRTY+SWAP          REGION\nMALLOC ZONE                         SIZE       SIZE       SIZE       SIZE      COUNT  ALLOCATED  FRAG SIZE  % FRAG   COUNT\n===========                      =======  =========  =========  =========  =========  =========  =========  ======  ======\nDefaultMallocZone_0x100c30000     512.0M       176K       176K       880K        372        37K      1019K     97%       1\nMallocHelperZone_0x100bf4000       85.0M       336K       336K       160K         53        30K       466K     94%      15\nobjc-class_rw_t_0x100c38000        5120K         0K         0K       160K        400         9K       151K     95%       5\n===========                      =======  =========  =========  =========  =========  =========  =========  ======  ======\nTOTAL                             602.0M       512K       512K      1200K        825        77K      1635K     96%      21\n\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "vmmap",
+        "-summary",
+        "72872"
+      ],
+      "returncode": 0,
+      "stdout": "Process:         kladovka-overwrite-final [72872]\nPath:            /private/tmp/kladovka-overwrite-final\nLoad Address:    0x1048bc000\nIdentifier:      kladovka-overwrite-final\nVersion:         ???\nCode Type:       ARM64\nPlatform:        macOS\nParent Process:  Python [72620]\nTarget Type:     live task\n\nDate/Time:       2026-10-21 11:21:28.964 +0300\nLaunch Time:     2026-10-21 11:09:52.348 +0300\nOS Version:      macOS 27.0.1 (26A434)\nReport Version:  7\nAnalysis Tool:   /usr/bin/vmmap\n\nPhysical footprint:         18.1M\nPhysical footprint (peak):  33.6M\nIdle exit:                  untracked\n----\n\nReadOnly portion of Libraries: Total=1.9G resident=174.9M(9%) swapped_out_or_unallocated=1.7G(91%)\nWritable regions: Total=688.0M written=17.2M(2%) resident=21.4M(3%) swapped_out=3712K(1%) unallocated=663.0M(96%)\n\n                                VIRTUAL RESIDENT    DIRTY  SWAPPED VOLATILE   NONVOL    EMPTY   REGION \nREGION TYPE                        SIZE     SIZE     SIZE     SIZE     SIZE     SIZE     SIZE    COUNT (non-coalesced) \n===========                     ======= ========    =====  ======= ========   ======    =====  ======= \nActivity Tracing                   256K      16K       0K      16K       0K      16K       0K        1 \nGuard                            385.0G       0K       0K       0K       0K       0K       0K        1 \nMalloc Guard Page                  192K       0K       0K       0K       0K       0K       0K       12         see MALLOC ZONE table below\nMalloc Metadata                    304K     112K     112K     192K       0K       0K       0K       13         see MALLOC ZONE table below\nMalloc Nano                      512.0M     192K     192K     976K       0K       0K       0K        1         see MALLOC ZONE table below\nMalloc Small                      24.0M      96K      96K      16K       0K       0K       0K        3         see MALLOC ZONE table below\nMalloc Small (empty)              56.0M     224K     224K       0K       0K       0K       0K        7         see MALLOC ZONE table below\nMalloc Tiny                       10.0M       0K       0K     320K       0K       0K       0K       10         see MALLOC ZONE table below\nMalloc Tiny (empty)               1024K       0K       0K      32K       0K       0K       0K        1         see MALLOC ZONE table below\nOS Alloc Once                       32K       0K       0K      16K       0K       0K       0K        1 \nStack                             18.6M     336K     336K      48K       0K       0K       0K       21 \nStack Guard                       56.3M       0K       0K       0K       0K       0K       0K       21 \nUntagged                           1.2G    19.6M    11.0M    2112K       0K       0K       0K       81 \n__AUTH                            1494K     684K       0K       48       0K       0K       0K      168 \n__AUTH_CONST                      18.7M    10.1M       0K       0K       0K       0K       0K      327 \n__CTF                               824      824       0K       0K       0K       0K       0K        1 \n__DATA                            5346K    2216K     384K      61K       0K       0K       0K      336 \n__DATA_CONST                      21.2M    12.5M     960K      16K       0K       0K       0K      325 \n__DATA_DIRTY                      1297K     520K      80K     212K       0K       0K       0K      286 \n__FONT_DATA                        2352     2352       0K       0K       0K       0K       0K        1 \n__LINKEDIT                         1.6G    30.1M       0K       0K       0K       0K       0K        2 \n__OBJC_RO                        118.0M    46.1M       0K       0K       0K       0K       0K        1 \n__OBJC_RW                         2735K    1680K       0K      47K       0K       0K       0K        1 \n__TEXT                           306.2M   144.8M       0K       0K       0K       0K       0K      390 \n__TPRO_CONST                       132K      52K      16K      32K       0K       0K       0K        4 \nmapped file                      512.0M   273.8M       0K       0K       0K       0K       0K        1 \npage table in kernel               657K     657K     657K       0K       0K       0K       0K        1 \nshared memory                       48K      48K      48K       0K       0K       0K       0K        2 \nunused but dirty shlib __DATA       95K      32K      32K      63K       0K       0K       0K       37 \n===========                     ======= ========    =====  ======= ========   ======    =====  ======= \nTOTAL                            389.4G   543.8M    14.1M    4160K       0K      16K       0K     2056 \n\n                                 VIRTUAL   RESIDENT      DIRTY    SWAPPED ALLOCATION      BYTES DIRTY+SWAP          REGION\nMALLOC ZONE                         SIZE       SIZE       SIZE       SIZE      COUNT  ALLOCATED  FRAG SIZE  % FRAG   COUNT\n===========                      =======  =========  =========  =========  =========  =========  =========  ======  ======\nDefaultMallocZone_0x1052ec000     512.0M       192K       192K       976K        372        37K      1131K     97%       1\nMallocHelperZone_0x1052b0000       86.0M       320K       320K       208K         53        30K       498K     95%      16\nobjc-class_rw_t_0x1052f4000        5120K         0K         0K       160K        400         9K       151K     95%       5\n===========                      =======  =========  =========  =========  =========  =========  =========  ======  ======\nTOTAL                             603.0M       512K       512K      1344K        825        77K      1779K     96%      22\n\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "vmmap",
+        "-summary",
+        "72873"
+      ],
+      "returncode": 0,
+      "stdout": "Process:         kladovka-overwrite-final [72873]\nPath:            /private/tmp/kladovka-overwrite-final\nLoad Address:    0x100220000\nIdentifier:      kladovka-overwrite-final\nVersion:         ???\nCode Type:       ARM64\nPlatform:        macOS\nParent Process:  Python [72620]\nTarget Type:     live task\n\nDate/Time:       2026-10-21 11:21:29.522 +0300\nLaunch Time:     2026-10-21 11:09:52.350 +0300\nOS Version:      macOS 27.0.1 (26A434)\nReport Version:  7\nAnalysis Tool:   /usr/bin/vmmap\n\nPhysical footprint:         18.4M\nPhysical footprint (peak):  34.9M\nIdle exit:                  untracked\n----\n\nReadOnly portion of Libraries: Total=1.9G resident=175.1M(9%) swapped_out_or_unallocated=1.7G(91%)\nWritable regions: Total=685.0M written=21.7M(3%) resident=26.5M(4%) swapped_out=2896K(0%) unallocated=655.6M(96%)\n\n                                VIRTUAL RESIDENT    DIRTY  SWAPPED VOLATILE   NONVOL    EMPTY   REGION \nREGION TYPE                        SIZE     SIZE     SIZE     SIZE     SIZE     SIZE     SIZE    COUNT (non-coalesced) \n===========                     ======= ========    =====  ======= ========   ======    =====  ======= \nActivity Tracing                   256K      16K       0K      16K       0K      16K       0K        1 \nGuard                            385.0G       0K       0K       0K       0K       0K       0K        1 \nMalloc Guard Page                  192K       0K       0K       0K       0K       0K       0K       12         see MALLOC ZONE table below\nMalloc Metadata                    304K     112K     112K     192K       0K       0K       0K       13         see MALLOC ZONE table below\nMalloc Nano                      512.0M     176K     176K     736K       0K       0K       0K        1         see MALLOC ZONE table below\nMalloc Small                      8192K      48K      48K       0K       0K       0K       0K        1         see MALLOC ZONE table below\nMalloc Small (empty)              72.0M     288K     288K       0K       0K       0K       0K        9         see MALLOC ZONE table below\nMalloc Tiny                       6144K       0K       0K     192K       0K       0K       0K        6         see MALLOC ZONE table below\nMalloc Tiny (empty)               2048K       0K       0K      64K       0K       0K       0K        2         see MALLOC ZONE table below\nOS Alloc Once                       32K       0K       0K      16K       0K       0K       0K        1 \nStack                             18.6M     352K     352K      32K       0K       0K       0K       21 \nStack Guard                       56.3M       0K       0K       0K       0K       0K       0K       21 \nUntagged                           1.2G    24.8M    12.1M    1664K       0K       0K       0K       84 \n__AUTH                            1494K     684K       0K       48       0K       0K       0K      168 \n__AUTH_CONST                      18.7M    10.1M       0K       0K       0K       0K       0K      327 \n__CTF                               824      824       0K       0K       0K       0K       0K        1 \n__DATA                            5346K    2216K     384K      61K       0K       0K       0K      336 \n__DATA_CONST                      21.2M    12.6M     960K      16K       0K       0K       0K      325 \n__DATA_DIRTY                      1297K     520K      80K     212K       0K       0K       0K      286 \n__FONT_DATA                        2352     2352       0K       0K       0K       0K       0K        1 \n__LINKEDIT                         1.6G    30.1M       0K       0K       0K       0K       0K        2 \n__OBJC_RO                        118.0M    46.1M       0K       0K       0K       0K       0K        1 \n__OBJC_RW                         2735K    1680K       0K      47K       0K       0K       0K        1 \n__TEXT                           306.2M   145.0M       0K       0K       0K       0K       0K      390 \n__TPRO_CONST                       132K      68K      32K      16K       0K       0K       0K        4 \nmapped file                      512.0M   163.2M       0K       0K       0K       0K       0K        1 \npage table in kernel               593K     593K     593K       0K       0K       0K       0K        1 \nshared memory                       48K      48K      48K       0K       0K       0K       0K        2 \nunused but dirty shlib __DATA       95K      32K      32K      63K       0K       0K       0K       37 \n===========                     ======= ========    =====  ======= ========   ======    =====  ======= \nTOTAL                            389.4G   438.6M    15.1M    3328K       0K      16K       0K     2056 \n\n                                 VIRTUAL   RESIDENT      DIRTY    SWAPPED ALLOCATION      BYTES DIRTY+SWAP          REGION\nMALLOC ZONE                         SIZE       SIZE       SIZE       SIZE      COUNT  ALLOCATED  FRAG SIZE  % FRAG   COUNT\n===========                      =======  =========  =========  =========  =========  =========  =========  ======  ======\nDefaultMallocZone_0x100c50000     512.0M       176K       176K       736K        372        37K       875K     96%       1\nMallocHelperZone_0x100c14000       85.0M       336K       336K       160K         53        30K       466K     94%      15\nobjc-class_rw_t_0x100c58000        3072K         0K         0K        96K        400         9K        87K     91%       3\n===========                      =======  =========  =========  =========  =========  =========  =========  ======  ======\nTOTAL                             600.0M       512K       512K       992K        825        77K      1427K     95%      19\n\n",
+      "stderr": ""
+    }
+  ],
+  "total_generations": 55,
+  "finished_utc": "2026-10-21T08:22:17.924500+00:00"
+}
