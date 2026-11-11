@@ -90,6 +90,23 @@ func (s *Store) PutObjectWithETag(polka, key string, body io.Reader, contentType
 	chunks := []Chunk{}
 	var size int64
 	buf := make([]byte, ChunkSize)
+	// Keep the global write lock (quota, prune, membership ordering). Pipeline at
+	// most four existing chunk commands within this upload, never whole objects.
+	// Drain on every exit, before unlocking, including reader/disk/leadership errors.
+	pending := make([]<-chan error, 0, 4)
+	queued := map[string]bool{}
+	flush := func() error {
+		var first error
+		for _, result := range pending {
+			if err := <-result; err != nil && first == nil {
+				first = err
+			}
+		}
+		pending = pending[:0]
+		clear(queued)
+		return first
+	}
+	defer func() { _ = flush() }()
 	for {
 		n, e := io.ReadFull(body, buf)
 		if e != nil && e != io.EOF && e != io.ErrUnexpectedEOF {
@@ -116,18 +133,40 @@ func (s *Store) PutObjectWithETag(polka, key string, body io.Reader, contentType
 		hash := sha256.Sum256(data)
 		h := hex.EncodeToString(hash[:])
 		chunks = append(chunks, Chunk{Hash: h, Size: int64(n)})
-		s.fsm.mu.RLock()
-		_, known := s.fsm.state.Chunks[h]
-		s.fsm.mu.RUnlock()
-		_, localErr := s.fsm.chunk(h)
-		if !known || localErr != nil {
-			if e := s.apply(command{Kind: "chunk", Hash: h, Data: data}); e != nil {
-				return nil, e
+		if !queued[h] {
+			// A missing/corrupt local file always needs a chunk command, so avoid
+			// taking the FSM lock (held through durable save) on the unique-data path.
+			_, localErr := s.fsm.chunk(h)
+			known := false
+			if localErr == nil {
+				s.fsm.mu.RLock()
+				_, known = s.fsm.state.Chunks[h]
+				s.fsm.mu.RUnlock()
+			}
+			if !known || localErr != nil {
+				// Independent chunks may commit in either order. Concurrent Apply calls
+				// permit Raft to batch queued logs without enabling BatchApplyCh or changing
+				// its enqueue timeout. Own the bytes before the upload buffer is reused.
+				owned := append([]byte(nil), data...)
+				done := make(chan error, 1)
+				pending = append(pending, done)
+				queued[h] = true
+				go func(hash string, payload []byte, result chan<- error) {
+					result <- s.apply(command{Kind: "chunk", Hash: hash, Data: payload})
+				}(h, owned, done)
+				if len(pending) == cap(pending) {
+					if err := flush(); err != nil {
+						return nil, err
+					}
+				}
 			}
 		}
 		if e == io.EOF || e == io.ErrUnexpectedEOF {
 			break
 		}
+	}
+	if err := flush(); err != nil {
+		return nil, err
 	}
 	if etag == "" {
 		etag = `"` + hex.EncodeToString(md.Sum(nil)) + `"`

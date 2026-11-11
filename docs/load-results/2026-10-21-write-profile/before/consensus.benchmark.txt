@@ -1,0 +1,7 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/rkislov/kladovka/internal/consensus
+cpu: Apple M4
+BenchmarkProfileConcurrentPUT-10    	       1	23969450917 ns/op	   4.20 MB/s	7619610872 B/op	  437376 allocs/op
+PASS
+ok  	github.com/rkislov/kladovka/internal/consensus	26.075s
