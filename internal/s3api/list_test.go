@@ -204,16 +204,16 @@ func TestGroupedListingLargeGroupAndCustomDelimiter(t *testing.T) {
 		objects = append(objects, storage.ObjectMeta{Key: fmt.Sprintf("group/%04d", i)})
 	}
 	objects = append(objects, storage.ObjectMeta{Key: "tail"})
-	first, last := groupedListing(objects, "", "/", "", 1)
+	first, last := listPageXML(storage.PaginateObjects(objects, "", "/", "", 1))
 	if !first.IsTruncated || last != "group/" || len(first.CommonPrefixes) != 1 {
 		t.Fatalf("large group: %+v %s", first, last)
 	}
-	next, _ := groupedListing(objects, "", "/", last, 1)
+	next, _ := listPageXML(storage.PaginateObjects(objects, "", "/", last, 1))
 	if next.IsTruncated || len(next.Contents) != 1 || next.Contents[0].Key != "tail" {
 		t.Fatalf("next page: %+v", next)
 	}
 	custom := []storage.ObjectMeta{{Key: "root::a::one"}, {Key: "root::a::two"}, {Key: "root::b"}}
-	result, _ := groupedListing(custom, "root::", "::", "", 2)
+	result, _ := listPageXML(storage.PaginateObjects(custom, "root::", "::", "", 2))
 	if result.IsTruncated || len(result.CommonPrefixes) != 1 || result.CommonPrefixes[0].Prefix != "root::a::" || len(result.Contents) != 1 {
 		t.Fatalf("custom delimiter: %+v", result)
 	}

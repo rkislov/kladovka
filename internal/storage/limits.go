@@ -34,7 +34,7 @@ func NewWithOptions(root string, options Options) (*Store, error) {
 	if err = durableMkdir(root, root); err != nil {
 		return nil, err
 	}
-	s := &Store{root: root, options: options, pending: map[string]bool{}, active: map[string]int{}}
+	s := &Store{root: root, options: options, pending: map[string]bool{}, active: map[string]int{}, catalogues: map[string]*catalogue{}}
 	legacy, err := s.legacyFormat()
 	if err != nil {
 		return nil, err
@@ -43,6 +43,10 @@ func NewWithOptions(root string, options Options) (*Store, error) {
 		return nil, err
 	}
 	if err = s.recoverTransactions(); err != nil {
+		return nil, err
+	}
+	s.catalogueExactNames, err = s.exactCatalogueNames()
+	if err != nil {
 		return nil, err
 	}
 	if legacy {
