@@ -63,6 +63,7 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("/api/cluster/add", s.handleMembership)
 		mux.HandleFunc("/api/cluster/remove", s.handleMembership)
 		mux.HandleFunc("/api/cluster/replace", s.handleReplaceNode)
+		mux.HandleFunc("/api/cluster/maintenance", s.handleMaintenance)
 	}
 	mux.HandleFunc("/internal/object/", s.handleInternalObject)
 	mux.HandleFunc("/internal/polki/", s.handleInternalPolka)

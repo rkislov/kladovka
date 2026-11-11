@@ -102,6 +102,7 @@ func (s *Store) repairLoop(ctx context.Context) {
 		case <-ticker.C:
 		}
 		s.SyncTopology()
+		s.reconcileMaintenance()
 		s.reconcileMembership()
 		s.reconcileReplacement()
 		if time.Since(lastPrune) >= time.Minute && s.IsLeader() && s.writeMu.TryLock() {
