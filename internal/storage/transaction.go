@@ -23,10 +23,12 @@ var (
 )
 
 type transaction struct {
-	Polka  string      `json:"polka"`
-	Key    string      `json:"key"`
-	Delete bool        `json:"delete,omitempty"`
-	Meta   *ObjectMeta `json:"meta,omitempty"`
+	Versioned bool          `json:"versioned,omitempty"`
+	History   *[]ObjectMeta `json:"history,omitempty"`
+	Polka     string        `json:"polka"`
+	Key       string        `json:"key"`
+	Delete    bool          `json:"delete,omitempty"`
+	Meta      *ObjectMeta   `json:"meta,omitempty"`
 }
 
 func syncDir(path string) error {
@@ -130,7 +132,16 @@ func (s *Store) putLocked(polka, key string, body io.Reader, contentType, etag s
 		contentType = "application/octet-stream"
 	}
 	meta := &ObjectMeta{Key: key, Size: n, ETag: etag, SHA256: hex.EncodeToString(sha.Sum(nil)), ContentType: contentType, LastModified: time.Now().UTC()}
-	tx := transaction{Polka: polka, Key: key, Meta: meta}
+	if s.options.Versioning {
+		meta.VersionID = NewVersionID()
+	}
+	if s.replicaMeta != nil {
+		if s.replicaMeta.SHA256 != meta.SHA256 || s.replicaMeta.Size != meta.Size {
+			return nil, ErrIntegrity
+		}
+		*meta = *s.replicaMeta
+	}
+	tx := transaction{Polka: polka, Key: key, Meta: meta, Versioned: s.options.Versioning}
 	b, err := json.Marshal(tx)
 	if err != nil {
 		return nil, err
@@ -163,6 +174,11 @@ func (s *Store) commitTransaction(dir string, tx transaction, inject bool) error
 	}
 	if inject {
 		if err = s.step("prepared"); err != nil {
+			return err
+		}
+	}
+	if tx.Versioned || tx.History != nil {
+		if err = s.commitHistory(dir, op, tx); err != nil {
 			return err
 		}
 	}
@@ -303,7 +319,12 @@ func (s *Store) deleteLocked(polka, key string) error {
 		return err
 	}
 	if _, err = os.Stat(op); errors.Is(err, os.ErrNotExist) {
-		return ErrObjectNotFound
+		if !s.options.Versioning {
+			return ErrObjectNotFound
+		}
+		if ok, _ := s.PolkaExists(polka); !ok {
+			return ErrPolkaNotFound
+		}
 	} else if err != nil {
 		return err
 	}
@@ -311,7 +332,14 @@ func (s *Store) deleteLocked(polka, key string) error {
 	if err != nil {
 		return err
 	}
-	tx := transaction{Polka: polka, Key: key, Delete: true}
+	tx := transaction{Polka: polka, Key: key, Delete: true, Versioned: s.options.Versioning}
+	if s.options.Versioning {
+		tx.Meta = &ObjectMeta{Key: key, VersionID: NewVersionID(), DeleteMarker: true, LastModified: time.Now().UTC()}
+		if s.replicaMeta != nil {
+			v := *s.replicaMeta
+			tx.Meta = &v
+		}
+	}
 	body, _ := json.Marshal(tx)
 	if err = writeAtomic(filepath.Join(dir, "manifest.json"), body); err != nil {
 		os.RemoveAll(dir)

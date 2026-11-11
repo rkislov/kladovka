@@ -69,7 +69,10 @@ func main() {
 		}
 	}
 
-	store, err := storage.NewWithOptions(cfg.DataRoot, storage.Options{QuotaBytes: cfg.StorageQuotaBytes, MinFreeBytes: uint64(cfg.MinFreeDiskBytes), VerifyReads: cfg.VerifyObjectChecksum, MultipartTTL: cfg.MultipartTTL})
+	if err := storage.EnsureVersioning(cfg.DataRoot, cfg.VersioningEnabled); err != nil {
+		log.Fatalf("versioning: %v", err)
+	}
+	store, err := storage.NewWithOptions(cfg.DataRoot, storage.Options{Versioning: cfg.VersioningEnabled && cfg.ClusterMode != "consensus", QuotaBytes: cfg.StorageQuotaBytes, MinFreeBytes: uint64(cfg.MinFreeDiskBytes), VerifyReads: cfg.VerifyObjectChecksum, MultipartTTL: cfg.MultipartTTL})
 	if err != nil {
 		log.Fatalf("storage: %v", err)
 	}
@@ -147,6 +150,14 @@ func main() {
 	go reg.StartHealthLoop(ctx)
 	go func() {
 		cleanup := func() {
+			if err := srv.CleanupTrash(ctx, time.Now()); err != nil {
+				log.Printf("trash cleanup: %v", err)
+			}
+			if cfg.ClusterMode != "consensus" {
+				if _, err := store.CleanupVersionFiles(); err != nil {
+					log.Printf("version payload cleanup: %v", err)
+				}
+			}
 			removed, err := store.CleanupMultipart(time.Now())
 			if err != nil {
 				log.Printf("multipart cleanup: %v", err)

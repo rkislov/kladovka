@@ -35,6 +35,8 @@ type Record struct {
 	Index   uint64             `json:"index"`
 }
 type command struct {
+	VersionID   string              `json:"version_id,omitempty"`
+	Versioned   bool                `json:"versioned,omitempty"`
 	Maintenance *Maintenance        `json:"maintenance,omitempty"`
 	Kind        string              `json:"kind"`
 	Polka       string              `json:"polka,omitempty"`
@@ -47,6 +49,7 @@ type command struct {
 	Topology    map[string]Endpoint `json:"topology,omitempty"`
 }
 type state struct {
+	Versions             map[string][]Record         `json:"versions,omitempty"`
 	Maintenance          *Maintenance                `json:"maintenance,omitempty"`
 	CompletedMaintenance map[string]Maintenance      `json:"completed_maintenance,omitempty"`
 	Buckets              map[string]bool             `json:"buckets"`
@@ -312,10 +315,24 @@ func (m *machine) applyCommand(l *raft.Log, c command, save func(string, []byte)
 				return storage.ErrPolkaNotEmpty
 			}
 		}
+		for _, versions := range m.state.Versions {
+			for _, r := range versions {
+				if r.Polka == c.Polka {
+					return storage.ErrPolkaNotEmpty
+				}
+			}
+		}
 		delete(m.state.Buckets, c.Polka)
 		return nil
+	case "purge_version":
+		return m.purgeVersion(c, l.Index)
+	case "expire_trash":
+		return m.expireTrash(c, l.Index)
 	case "put":
 		r := c.Record
+		if !c.Versioned && len(m.state.Versions[r.Polka+"/"+r.Key]) > 0 {
+			return errors.New("versioned object requires version-aware write")
+		}
 		if !m.state.Buckets[r.Polka] {
 			return storage.ErrPolkaNotFound
 		}
@@ -332,10 +349,20 @@ func (m *machine) applyCommand(l *raft.Log, c command, save func(string, []byte)
 		}
 		r.Index = l.Index
 		r.Deleted = false
+		if c.Versioned {
+			m.keepVersion(r)
+		}
 		m.state.Records[r.Polka+"/"+r.Key] = r
 		return nil
 	case "prune":
 		live := map[string]bool{}
+		for _, versions := range m.state.Versions {
+			for _, r := range versions {
+				for _, chunk := range r.Chunks {
+					live[chunk.Hash] = true
+				}
+			}
+		}
 		for _, r := range m.state.Records {
 			if !r.Deleted && m.state.Buckets[r.Polka] {
 				for _, c := range r.Chunks {
@@ -354,8 +381,23 @@ func (m *machine) applyCommand(l *raft.Log, c command, save func(string, []byte)
 		}
 		return syncDirectory(m.dir)
 	case "delete":
+		if !c.Versioned && len(m.state.Versions[c.Polka+"/"+c.Key]) > 0 {
+			return errors.New("versioned object requires version-aware delete")
+		}
 		if !m.state.Buckets[c.Polka] {
 			return storage.ErrPolkaNotFound
+		}
+		if c.Versioned {
+			r := c.Record
+			r.Polka = c.Polka
+			r.Key = c.Key
+			r.Deleted = true
+			r.Index = l.Index
+			r.Meta.DeleteMarker = true
+			r.Meta.Key = c.Key
+			m.keepVersion(r)
+			m.state.Records[c.Polka+"/"+c.Key] = r
+			return nil
 		}
 		// Never discard deletion generations: an old file cannot become live again.
 		m.state.Records[c.Polka+"/"+c.Key] = Record{Polka: c.Polka, Key: c.Key, Deleted: true, Index: l.Index}

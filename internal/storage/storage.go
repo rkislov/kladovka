@@ -35,6 +35,9 @@ var (
 
 // ObjectMeta describes a stored object (S3 HeadObject fields).
 type ObjectMeta struct {
+	VersionID    string    `json:"version_id,omitempty"`
+	DeleteMarker bool      `json:"delete_marker,omitempty"`
+	IsLatest     bool      `json:"is_latest,omitempty"`
 	Key          string    `json:"key"`
 	Size         int64     `json:"size"`
 	ETag         string    `json:"etag"`
@@ -53,6 +56,7 @@ type Store struct {
 	pending             map[string]bool
 	catalogues          map[string]*catalogue
 	catalogueExactNames bool
+	replicaMeta         *ObjectMeta
 	afterStep           func(string) error
 }
 
@@ -113,10 +117,15 @@ func (s *Store) CreatePolka(name string) error {
 	return nil
 }
 
-// DeletePolka removes an empty shelf.
+// DeletePolka removes an empty shelf, including retained generations.
 func (s *Store) DeletePolka(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if exists, err := s.hasHistory(name); err != nil {
+		return err
+	} else if exists {
+		return ErrPolkaNotEmpty
+	}
 	pp, err := s.polkaPath(name)
 	if err != nil {
 		return err

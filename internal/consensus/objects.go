@@ -178,7 +178,10 @@ func (s *Store) PutObjectWithETag(polka, key string, body io.Reader, contentType
 		contentType = "application/octet-stream"
 	}
 	meta := storage.ObjectMeta{Key: key, Size: size, ETag: etag, SHA256: hex.EncodeToString(sha.Sum(nil)), ContentType: contentType, LastModified: time.Now().UTC()}
-	if e := s.apply(command{Kind: "put", Record: Record{Polka: polka, Key: key, Meta: meta, Chunks: chunks}}); e != nil {
+	if s.cfg.VersioningEnabled {
+		meta.VersionID = storage.NewVersionID()
+	}
+	if e := s.apply(command{Kind: "put", Versioned: s.cfg.VersioningEnabled, Record: Record{Polka: polka, Key: key, Meta: meta, Chunks: chunks}}); e != nil {
 		return nil, e
 	}
 	return &meta, nil
@@ -190,7 +193,8 @@ func (s *Store) DeleteObject(polka, key string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.pruneIfDue()
-	return s.apply(command{Kind: "delete", Polka: polka, Key: key})
+	_, err := s.deleteVersionedLocked(polka, key)
+	return err
 }
 func (s *Store) record(polka, key string) (Record, error) {
 	s.fsm.mu.RLock()
@@ -296,6 +300,16 @@ func (s *Store) QuotaUsage() (int64, int64, error) {
 	for _, r := range s.fsm.state.Records {
 		if !r.Deleted && s.fsm.state.Buckets[r.Polka] {
 			used += r.Meta.Size
+		}
+	}
+	s.fsm.mu.RUnlock()
+	s.fsm.mu.RLock()
+	for _, versions := range s.fsm.state.Versions {
+		for _, r := range versions {
+			current := s.fsm.state.Records[r.Polka+"/"+r.Key]
+			if r.Meta.VersionID != current.Meta.VersionID && !r.Deleted {
+				used += r.Meta.Size
+			}
 		}
 	}
 	s.fsm.mu.RUnlock()

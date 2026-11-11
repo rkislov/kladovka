@@ -10,7 +10,9 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/rkislov/kladovka/internal/storage"
 	"io"
 	"net/http"
 	"net/url"
@@ -47,7 +49,7 @@ func (r *Replicator) PrimaryURL(polka, key string) string {
 }
 
 // ReplicatePut sends object bytes to replica peers (not self).
-func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body io.ReadSeeker, contentType string, etag string) error {
+func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body io.ReadSeeker, contentType string, etag string, versions ...*storage.ObjectMeta) error {
 	nodes := r.Placement(polka, key)
 	self := r.Registry.SelfID()
 	var firstErr error
@@ -74,6 +76,10 @@ func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body i
 		if contentType != "" {
 			req.Header.Set("Content-Type", contentType)
 		}
+		if len(versions) > 0 && versions[0] != nil && versions[0].VersionID != "" {
+			b, _ := json.Marshal(versions[0])
+			req.Header.Set("X-Kladovka-Version-Meta", string(b))
+		}
 		r.Registry.Authorize(req)
 		resp, err := r.Registry.Client().Do(req)
 		if err != nil {
@@ -90,7 +96,7 @@ func (r *Replicator) ReplicatePut(ctx context.Context, polka, key string, body i
 }
 
 // ReplicateDelete best-effort deletes object on peers.
-func (r *Replicator) ReplicateDelete(ctx context.Context, polka, key string) error {
+func (r *Replicator) ReplicateDelete(ctx context.Context, polka, key string, versions ...*storage.ObjectMeta) error {
 	var firstErr error
 	nodes := r.Placement(polka, key)
 	self := r.Registry.SelfID()
@@ -107,6 +113,10 @@ func (r *Replicator) ReplicateDelete(ctx context.Context, polka, key string) err
 		if err != nil {
 			firstErr = err
 			continue
+		}
+		if len(versions) > 0 && versions[0] != nil && versions[0].VersionID != "" {
+			b, _ := json.Marshal(versions[0])
+			req.Header.Set("X-Kladovka-Version-Meta", string(b))
 		}
 		r.Registry.Authorize(req)
 		resp, err := r.Registry.Client().Do(req)

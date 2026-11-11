@@ -41,7 +41,7 @@ release: clean
 	cp $(DIST)/$(APP)-$(VERSION)-linux-arm64 $(DIST)/$(APP)-$(VERSION)-raspberrypi-64bit
 	cp $(DIST)/$(APP)-$(VERSION)-linux-armv7 $(DIST)/$(APP)-$(VERSION)-raspberrypi-32bit
 	tar -czf $(DIST)/$(APP)-$(VERSION)-third-party-notices.tar.gz NOTICE THIRD_PARTY_NOTICES.md third_party/go-licenses
-	tar -czf $(DIST)/$(APP)-$(VERSION)-documentation.tar.gz README.md docs/USER.md docs/ADMIN.md docs/CONSENSUS.md docs/STATUS.md docs/S3_CLIENTS.md docs/LOAD_PILOT.md docs/load-results docs/presentation docs/wallpapers/joyful docs/screenshots/ui-light.png monitoring
+	tar -czf $(DIST)/$(APP)-$(VERSION)-documentation.tar.gz README.md docs/USER.md docs/ADMIN.md docs/CONSENSUS.md docs/STATUS.md docs/S3_CLIENTS.md docs/LOAD_PILOT.md docs/load-results docs/presentation docs/wallpapers/joyful docs/screenshots/ui-light.png docs/screenshots/ui-version-history.png monitoring
 	$(MAKE) checksums
 
 checksums:
