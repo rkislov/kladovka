@@ -155,6 +155,12 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.applyCommand(l, c, m.save)
+}
+
+// applyCommand runs under mu. The saver must finish before any subsequent
+// non-chunk command becomes visible; ApplyBatch enforces that boundary.
+func (m *machine) applyCommand(l *raft.Log, c command, save func(string, []byte) error) interface{} {
 	m.state.Index = l.Index
 	switch c.Kind {
 	case "maintenance_enter":
@@ -286,7 +292,7 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 		// not a divergent vote on an already committed operation.
 		m.state.Chunks[c.Hash] = int64(len(c.Data))
 		m.state.ChunkLogs[c.Hash] = l.Index
-		if e := m.save(c.Hash, c.Data); e != nil {
+		if e := save(c.Hash, c.Data); e != nil {
 			m.diskError = e
 			return e
 		}
@@ -358,6 +364,67 @@ func (m *machine) Apply(l *raft.Log) interface{} {
 		return errors.New("unknown consensus command")
 	}
 }
+
+// ApplyBatch overlaps independent chunk fsyncs, without removing any durability
+// step. Logical commands stay ordered and all saves finish under mu before a
+// non-chunk command, a snapshot, or a caller can observe the completed batch.
+// Raft may send configuration entries too; this FSM does not store those.
+func (m *machine) ApplyBatch(logs []*raft.Log) []interface{} {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	results := make([]interface{}, len(logs))
+	type job struct {
+		index int
+		hash  string
+		data  []byte
+	}
+	jobs := make([]job, 0, 4)
+	flush := func() {
+		if len(jobs) == 0 {
+			return
+		}
+		done := make([]chan error, len(jobs))
+		for i, j := range jobs {
+			done[i] = make(chan error, 1)
+			go func(j job, result chan<- error) { result <- m.save(j.hash, j.data) }(j, done[i])
+		}
+		for i, j := range jobs {
+			if err := <-done[i]; err != nil {
+				results[j.index] = err
+				m.diskError = err
+			}
+		}
+		clear(jobs)
+		jobs = jobs[:0]
+	}
+	for i, l := range logs {
+		if l.Type != raft.LogCommand {
+			flush()
+			continue
+		}
+		var c command
+		if json.Unmarshal(l.Data, &c) != nil {
+			flush()
+			results[i] = errors.New("invalid consensus command")
+			continue
+		}
+		if c.Kind != "chunk" {
+			flush()
+			results[i] = m.applyCommand(l, c, m.save)
+			continue
+		}
+		results[i] = m.applyCommand(l, c, func(hash string, data []byte) error {
+			jobs = append(jobs, job{index: i, hash: hash, data: data})
+			return nil
+		})
+		if len(jobs) == cap(jobs) {
+			flush()
+		}
+	}
+	flush()
+	return results
+}
+
 func (m *machine) copyState() state {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
