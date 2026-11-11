@@ -756,7 +756,9 @@ func splitPolkaKey(path string) (polka, key string, hasKey bool) {
 		return path, "", false
 	}
 	polka = path[:i]
-	key, _ = url.PathUnescape(path[i+1:])
+	// Callers pass URL.Path, which net/http has already decoded once.
+	// Decoding again aliases literal %2F/%25 sequences and drops invalid escapes.
+	key = path[i+1:]
 	return polka, key, true
 }
 
