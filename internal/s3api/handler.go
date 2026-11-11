@@ -478,7 +478,6 @@ func (s *Server) handleListPolki(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka string) {
-	q := r.URL.Query()
 	switch r.Method {
 	case http.MethodPut:
 		if err := s.createPolka(r.Context(), polka); err != nil {
@@ -507,26 +506,7 @@ func (s *Server) handlePolka(w http.ResponseWriter, r *http.Request, polka strin
 		}
 		w.WriteHeader(http.StatusNoContent)
 	case http.MethodGet:
-		// ListObjectsV2 when list-type=2 or default list.
-		prefix := q.Get("prefix")
-		maxKeys := 1000
-		if v := q.Get("max-keys"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil && n > 0 {
-				maxKeys = n
-			}
-		}
-		startAfter := q.Get("continuation-token")
-		if startAfter == "" {
-			startAfter = q.Get("start-after")
-		}
-		objs, truncated, err := s.Store.ListObjects(polka, prefix, maxKeys, startAfter)
-		if err != nil {
-			st, code, msg := mapStorageErr(err)
-			writeS3Error(w, st, code, msg, "/"+polka)
-			return
-		}
-		metrics.RecordS3Operation("ListObjectsV2", polka)
-		writeXML(w, http.StatusOK, listObjectsXML(polka, prefix, startAfter, maxKeys, objs, truncated))
+		s.listObjects(w, r, polka)
 	default:
 		writeS3Error(w, http.StatusMethodNotAllowed, "MethodNotAllowed", "method not allowed", "/"+polka)
 	}
