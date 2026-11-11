@@ -27,29 +27,29 @@ import (
 
 type Store struct {
 	*storage.Store
-	cfg              *config.Config
-	reg              *cluster.Registry
-	fsm              *machine
-	raft             *raft.Raft
-	transport        *raft.NetworkTransport
-	logs             *bolt.BoltStore
-	writeMu          sync.Mutex
-	cacheMu          sync.Mutex
-	ctx              context.Context
-	repairMu         sync.Mutex
-	repairIndex      map[string]uint64
-	pending          int
-	repairError      string
-	replacementError string
-	membershipError  string
-	maintenanceError string
-	activeRequests   atomic.Int64
-	admissionReady   atomic.Bool
-	cancel           context.CancelFunc
-	done             chan struct{}
-	closeOnce        sync.Once
-	closeErr         error
-	localID          raft.ServerID
+	cfg                *config.Config
+	reg                *cluster.Registry
+	fsm                *machine
+	raft               *raft.Raft
+	transport          *raft.NetworkTransport
+	logs               *bolt.BoltStore
+	writeMu            sync.Mutex
+	cacheMu            sync.Mutex
+	ctx                context.Context
+	repairMu           sync.Mutex
+	repairIndex        map[string]uint64
+	repairChunkPending int
+	repairError        string
+	replacementError   string
+	membershipError    string
+	maintenanceError   string
+	activeRequests     atomic.Int64
+	admissionReady     atomic.Bool
+	cancel             context.CancelFunc
+	done               chan struct{}
+	closeOnce          sync.Once
+	closeErr           error
+	localID            raft.ServerID
 }
 
 func Open(cfg *config.Config, base *storage.Store, reg *cluster.Registry) (*Store, error) {
@@ -321,16 +321,19 @@ func (s *Store) apply(c command) error {
 func (s *Store) Status() map[string]any {
 	s.repairMu.Lock()
 	maintenanceError := s.maintenanceError
-	pending, last, replacementError, membershipError := s.pending, s.repairError, s.replacementError, s.membershipError
-	s.repairMu.Unlock()
+	pending, last, replacementError, membershipError := s.repairChunkPending, s.repairError, s.replacementError, s.membershipError
 	s.fsm.mu.RLock()
 	index := s.fsm.state.Index
 	tombstones := 0
-	for _, r := range s.fsm.state.Records {
+	for key, r := range s.fsm.state.Records {
+		if s.repairIndex[key] != r.Index {
+			pending++
+		}
 		if r.Deleted {
 			tombstones++
 		}
 	}
 	s.fsm.mu.RUnlock()
+	s.repairMu.Unlock()
 	return map[string]any{"mode": "consensus", "term": s.raft.Stats()["term"], "state": s.raft.State().String(), "leader": s.LeaderURL(), "applied_index": index, "repair_pending": pending, "repair_error": last, "tombstones": tombstones, "raft_id": string(s.localID), "voters": s.voterCount(), "quorum": s.requiredQuorum(), "members": s.members(), "replacement": s.replacement(), "replacement_error": replacementError, "membership_change": s.membershipChange(), "membership_error": membershipError, "target_rf": s.TargetRF(), "maintenance": s.Maintenance(), "maintenance_error": maintenanceError, "active_requests": s.activeRequests.Load(), "maintenance_local": s.LocalMaintenance()}
 }

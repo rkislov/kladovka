@@ -1,0 +1,2718 @@
+{
+  "started_utc": "2026-10-21T04:35:47.107240+00:00",
+  "status": "passed",
+  "binary_sha256": "fd4d48c41aa229b8838b9b7695364d967513f635a25999929de41c559e89b8a9",
+  "binary_version": "kladovka 0.4.0 (155444f)\nCopyright 2026 Роман Сергеевич Кислов\nLicensed under the Apache License, Version 2.0",
+  "harness_sha256": "82f2ec1b2ec2d815610f9ec06adaad417f7d9d76be6144e47cd3e51d706886aa",
+  "fixture_sha256": "1fd368f46ccf50911038f7c549ba97f37a174cab239385c821c9228bb009e78e",
+  "host": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "objects": 256,
+  "object_bytes": 4096,
+  "concurrency": 4,
+  "tls": false,
+  "audit": false,
+  "phases": [
+    {
+      "name": "seed",
+      "minimum_applied_index": 42,
+      "observations": [
+        {
+          "elapsed_seconds": 0.001,
+          "nodes": [
+            {
+              "applied_index": 42,
+              "repair_pending": 6,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 41,
+              "repair_pending": 5,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 41,
+              "repair_pending": 5,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 0.21,
+          "nodes": [
+            {
+              "applied_index": 42,
+              "repair_pending": 6,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 6,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 5,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 0.417,
+          "nodes": [
+            {
+              "applied_index": 42,
+              "repair_pending": 4,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 4,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 4,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 0.629,
+          "nodes": [
+            {
+              "applied_index": 42,
+              "repair_pending": 1,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 1,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 1,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 0.869,
+          "nodes": [
+            {
+              "applied_index": 42,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 1.104,
+          "nodes": [
+            {
+              "applied_index": 42,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 42,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        }
+      ],
+      "seconds": 1.135,
+      "verified_nodes": 3,
+      "verified_objects_per_node": 8,
+      "verified_tombstones_per_node": 0
+    },
+    {
+      "name": "offline replica catch-up after writes stop",
+      "minimum_applied_index": 1077,
+      "observations": [
+        {
+          "elapsed_seconds": 0.006,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 0.219,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 7,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 7,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 0.433,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 4,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 4,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 0.646,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 3,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 0.861,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 3,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 1.066,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 1,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 1.272,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 1.479,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 1.694,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 1.9,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 2.106,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 2.317,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 2.525,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 2.735,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 2.949,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 3.156,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 3.37,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 3.582,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 3.797,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 4.008,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 4.219,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 4.433,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 4.64,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 4.85,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.061,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.267,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.48,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.698,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.911,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 6.123,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 6.333,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 0,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 6.586,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 711,
+              "repair_pending": 174,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 6.861,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 747,
+              "repair_pending": 183,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 7.102,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 781,
+              "repair_pending": 189,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 7.372,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 831,
+              "repair_pending": 199,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 7.609,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 883,
+              "repair_pending": 210,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 7.859,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 935,
+              "repair_pending": 221,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.094,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 983,
+              "repair_pending": 230,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.303,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1029,
+              "repair_pending": 239,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.518,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 249,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.728,
+          "nodes": [
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 245,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.938,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1077,
+              "repair_pending": 242,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.149,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 239,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.359,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 233,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.568,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 229,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.781,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 225,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.989,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 221,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 10.203,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 217,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 10.416,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 212,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 10.63,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 209,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 10.843,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 204,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 11.057,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 200,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 11.269,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 196,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 11.483,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 193,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 11.699,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 189,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 11.905,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 185,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 12.117,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 181,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 12.326,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 178,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 12.532,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 174,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 12.747,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 170,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 12.96,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 166,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 13.175,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 162,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 13.382,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 160,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 13.592,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 155,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 13.809,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 153,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 14.022,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 149,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 14.232,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 144,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 14.441,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 141,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 14.655,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 135,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 14.858,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 131,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 15.072,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 128,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 15.284,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 123,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 15.497,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 120,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 15.702,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 115,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 15.915,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 111,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 16.128,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 107,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 16.335,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 103,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 16.55,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 99,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 16.765,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 94,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 16.969,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 91,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 17.182,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 88,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 17.388,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 84,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 17.599,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 80,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 17.812,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 75,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 18.018,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 72,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 18.231,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 68,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 18.445,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 64,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 18.651,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 59,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 18.86,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 55,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 19.067,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 51,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 19.272,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 48,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 19.479,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 44,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 19.685,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 40,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 19.89,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 36,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 20.1,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 32,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 20.305,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 27,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 20.516,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 23,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 20.727,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 19,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 20.932,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 15,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 21.136,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 11,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 21.349,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 6,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 21.564,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 3,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 21.803,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 22.029,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        }
+      ],
+      "seconds": 22.253,
+      "verified_nodes": 3,
+      "verified_objects_per_node": 261,
+      "verified_tombstones_per_node": 3
+    },
+    {
+      "name": "full restart and missing cache file recovery",
+      "minimum_applied_index": 1077,
+      "observations": [
+        {
+          "elapsed_seconds": 0.006,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 0.215,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 0.426,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 0.63,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 0.836,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 1.046,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 1.254,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 1.465,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 1.669,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 1.88,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 2.084,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 2.292,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 2.495,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 2.704,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 2.915,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 3.125,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 3.334,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 3.545,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 3.755,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 3.961,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 4.171,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 4.377,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 4.588,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 4.793,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 5.001,
+          "nodes": []
+        },
+        {
+          "elapsed_seconds": 5.204,
+          "nodes": [
+            {
+              "applied_index": 683,
+              "repair_pending": 95,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 750,
+              "repair_pending": 152,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 683,
+              "repair_pending": 118,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.409,
+          "nodes": [
+            {
+              "applied_index": 683,
+              "repair_pending": 30,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 750,
+              "repair_pending": 88,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 683,
+              "repair_pending": 66,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.613,
+          "nodes": [
+            {
+              "applied_index": 683,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 750,
+              "repair_pending": 48,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 683,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 5.827,
+          "nodes": [
+            {
+              "applied_index": 683,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 750,
+              "repair_pending": 4,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 683,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 6.124,
+          "nodes": [
+            {
+              "applied_index": 703,
+              "repair_pending": 5,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 753,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 687,
+              "repair_pending": 1,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 6.429,
+          "nodes": [
+            {
+              "applied_index": 755,
+              "repair_pending": 18,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 803,
+              "repair_pending": 10,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 734,
+              "repair_pending": 12,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 6.722,
+          "nodes": [
+            {
+              "applied_index": 807,
+              "repair_pending": 31,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 857,
+              "repair_pending": 18,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 783,
+              "repair_pending": 25,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 7.026,
+          "nodes": [
+            {
+              "applied_index": 851,
+              "repair_pending": 42,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 903,
+              "repair_pending": 30,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 830,
+              "repair_pending": 36,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 7.38,
+          "nodes": [
+            {
+              "applied_index": 899,
+              "repair_pending": 50,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 955,
+              "repair_pending": 43,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 883,
+              "repair_pending": 46,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 7.686,
+          "nodes": [
+            {
+              "applied_index": 946,
+              "repair_pending": 54,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1001,
+              "repair_pending": 49,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 927,
+              "repair_pending": 51,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.035,
+          "nodes": [
+            {
+              "applied_index": 991,
+              "repair_pending": 61,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1047,
+              "repair_pending": 54,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 974,
+              "repair_pending": 56,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.299,
+          "nodes": [
+            {
+              "applied_index": 1047,
+              "repair_pending": 67,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 32,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1023,
+              "repair_pending": 63,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.503,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 14,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 31,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 72,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.717,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 14,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 19,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 8.925,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 14,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 19,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.135,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 14,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 19,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.34,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 8,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 14,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.629,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        },
+        {
+          "elapsed_seconds": 9.862,
+          "nodes": [
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            },
+            {
+              "applied_index": 1079,
+              "repair_pending": 0,
+              "repair_error": ""
+            }
+          ]
+        }
+      ],
+      "seconds": 10.074,
+      "verified_nodes": 3,
+      "verified_objects_per_node": 261,
+      "verified_tombstones_per_node": 3
+    }
+  ],
+  "topology": {
+    "nodes": 3,
+    "replication_factor": 3,
+    "route": "follower to leader",
+    "initial_leader": 0,
+    "target_node": 1
+  },
+  "finished_utc": "2026-10-21T04:37:21.854879+00:00"
+}
