@@ -12,6 +12,7 @@ from botocore.exceptions import ClientError
 from boto3.s3.transfer import TransferConfig
 from minio import Minio
 from minio.commonconfig import CopySource
+from minio.deleteobjects import DeleteObject
 import urllib3
 
 
@@ -102,15 +103,23 @@ def run(endpoint, access_key, secret_key):
     assert b.head_object(Bucket=bucket, Key='copy')['ContentType'] == 'application/json'
     expected.update({'copy', 'minio-copy', 'multipart-copy'})
     # Unsupported writes must fail explicitly and leave the source untouched.
-    rejected('NotImplemented', lambda: b.delete_objects(Bucket=bucket, Delete={'Objects': [{'Key': key}]}))
+    rejected('NotImplemented', lambda: b.delete_objects(Bucket=bucket, Delete={'Objects': [{'Key': key}, {'Key': 'empty', 'VersionId': 'unsupported'}]}))
     assert boto_read(key) == small
     upload = b.create_multipart_upload(Bucket=bucket, Key='aborted')['UploadId']
     b.abort_multipart_upload(Bucket=bucket, Key='aborted', UploadId=upload)
     rejected('NoSuchKey', lambda: b.get_object(Bucket=bucket, Key='aborted'))
-    for k in expected:
-        m.remove_object(bucket, k)
+    deleted = b.delete_objects(Bucket=bucket, Delete={'Objects': [{'Key': k} for k in ['copy', 'empty', 'missing']]})
+    assert not deleted.get('Errors') and {x['Key'] for x in deleted['Deleted']} == {'copy', 'empty', 'missing'}
+    expected.difference_update({'copy', 'empty'})
+    quiet = b.delete_objects(Bucket=bucket, Delete={'Objects': [{'Key': 'literal/a%2Fb'}, {'Key': '../invalid'}], 'Quiet': True})
+    assert not quiet.get('Deleted') and [(e['Key'], e['Code']) for e in quiet['Errors']] == [('../invalid', 'InvalidArgument')]
+    rejected('NoSuchKey', lambda: b.get_object(Bucket=bucket, Key='literal/a%2Fb'))
+    assert boto_read('literal/a/b') == literals['literal/a/b']
+    expected.remove('literal/a%2Fb')
+    errors = list(m.remove_objects(bucket, [DeleteObject(k) for k in sorted(expected)]))
+    assert not errors, errors
     assert not list(m.list_objects(bucket, recursive=True))
     m.remove_bucket(bucket)
     b.close()
     print(f'PASS boto3 {version("boto3")}, botocore {version("botocore")}, minio {version("minio")}: '
-          'cross-client bytes, escaped keys, empty objects, Range, presigned GET, multipart, pagination, CopyObject, conditional copy, abort, deletion and explicit unsupported writes', flush=True)
+          'cross-client bytes, escaped keys, empty objects, Range, presigned GET, multipart, pagination, CopyObject, conditional copy, abort, DeleteObjects, Quiet, per-key failures and unsupported versions', flush=True)

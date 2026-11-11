@@ -342,6 +342,19 @@ func TestTwoNodeForwardingReplicationAndFailure(t *testing.T) {
 	if resp.StatusCode != 206 || string(b) != "el" {
 		t.Fatalf("fallback range %d %q", resp.StatusCode, b)
 	}
+	// A single batch spans distinct primaries and confirms deletion on all replicas.
+	batchBody := fmt.Sprintf("<Delete><Object><Key>%s</Key></Object><Object><Key>nested/key</Key></Object><Object><Key>missing</Key></Object></Delete>", copyKey)
+	batch := decodeBatch(t, batchRequest(nodes[0].Handler(), "/demo?delete", batchBody, "test", "secret", nil))
+	if len(batch.Errors) != 0 || len(batch.Deleted) != 3 {
+		t.Fatalf("distributed batch: %+v", batch)
+	}
+	for _, node := range nodes {
+		for _, key := range []string{copyKey, "nested/key"} {
+			if _, err := node.Store.HeadObject("demo", key); err == nil {
+				t.Fatal("replica not deleted", key)
+			}
+		}
+	}
 	// Failed replication must never be reported as a successful write.
 	primary := 0
 	if !nodes[0].Rep.IsPrimary("demo", "offline") {
@@ -352,6 +365,10 @@ func TestTwoNodeForwardingReplicationAndFailure(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != 503 {
 		t.Fatal("failed replication returned", resp.StatusCode)
+	}
+	failedBatch := decodeBatch(t, batchRequest(nodes[primary].Handler(), "/demo?delete", "<Delete><Object><Key>offline</Key></Object><Quiet>true</Quiet></Delete>", "test", "secret", nil))
+	if len(failedBatch.Deleted) != 0 || len(failedBatch.Errors) != 1 || failedBatch.Errors[0].Code != "ServiceUnavailable" {
+		t.Fatalf("unconfirmed deletion reported successful: %+v", failedBatch)
 	}
 }
 

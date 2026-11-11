@@ -18,7 +18,7 @@ type uploadReservation struct{ held int64 }
 
 func (s *Server) limitUploads(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut && !(r.Method == http.MethodPost && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId"))) {
+		if r.Method != http.MethodPut && !(r.Method == http.MethodPost && (r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId") || r.URL.Query().Has("delete"))) {
 			next.ServeHTTP(w, r)
 			return
 		}
